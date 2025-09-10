@@ -41,8 +41,8 @@ class Pair(BaseModel):
 
 
 class Reserves(BaseModel):
-    asset0: Union[str, int]
-    asset1: Union[str, int]
+    asset0: Union[str, float]
+    asset1: Union[str, float]
 
 
 class SwapEvent(BaseModel):
@@ -52,11 +52,11 @@ class SwapEvent(BaseModel):
     eventIndex: int
     maker: str
     pairId: str
-    asset0In: Optional[Union[str, int]] = None
-    asset1In: Optional[Union[str, int]] = None
-    asset0Out: Optional[Union[str, int]] = None
-    asset1Out: Optional[Union[str, int]] = None
-    priceNative: Union[str, int]
+    asset0In: Optional[Union[str, float]] = None
+    asset1In: Optional[Union[str, float]] = None
+    asset0Out: Optional[Union[str, float]] = None
+    asset1Out: Optional[Union[str, float]] = None
+    priceNative: Union[str, float]
     reserves: Optional[Reserves] = None
     metadata: Optional[Dict[str, str]] = None
 
@@ -68,8 +68,8 @@ class JoinExitEvent(BaseModel):
     eventIndex: int
     maker: str
     pairId: str
-    amount0: Union[str, int]
-    amount1: Union[str, int]
+    amount0: Union[str, float]
+    amount1: Union[str, float]
     reserves: Optional[Reserves] = None
     metadata: Optional[Dict[str, str]] = None
 

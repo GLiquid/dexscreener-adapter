@@ -108,17 +108,9 @@ class SerializerService:
     async def serialize_swap_event(self, swap: AlgebraSwap) -> SwapEventWithBlock:
         """Convert Algebra swap to DEX Screener swap event"""
         
-        # Now we have all token info directly from the swap event
-        token0 = swap.token0
-        token1 = swap.token1
-        
-        # Get block timestamp from swap data (subgraph includes timestamp)
-        block_timestamp = swap.timestamp
-        
         # Format amounts
-        amount0_formatted = format_amount(abs(swap.amount0), token0.decimals)
-        amount1_formatted = format_amount(abs(swap.amount1), token1.decimals)
-        
+        amount0_formatted = swap.amount0
+        amount1_formatted = swap.amount1
         # Determine direction (which token is in vs out)
         asset0_in = amount0_formatted if swap.amount0 > 0 else None
         asset0_out = amount0_formatted if swap.amount0 < 0 else None
@@ -126,9 +118,7 @@ class SerializerService:
         asset1_out = amount1_formatted if swap.amount1 < 0 else None
         
         # Calculate price (price of token0 in terms of token1)
-        price_native = calculate_price_from_sqrt_price(
-            swap.sqrt_price_x96, token0.decimals, token1.decimals
-        )
+        price_native = amount0_formatted/amount1_formatted
         
         # Include reserves if available from subgraph
         reserves = None
@@ -143,7 +133,7 @@ class SerializerService:
         return SwapEventWithBlock(
             block=Block(
                 blockNumber=swap.block_number,
-                blockTimestamp=block_timestamp
+                blockTimestamp=swap.block_timestamp
             ),
             eventType="swap",
             txnId=swap.tx_hash,
@@ -165,15 +155,6 @@ class SerializerService:
     async def serialize_mint_event(self, mint: AlgebraMint) -> JoinExitEventWithBlock:
         """Convert Algebra mint to DEX Screener join event"""
         
-        # Now we have all token info directly from the mint event
-        token0 = mint.token0
-        token1 = mint.token1
-        
-        # Get block timestamp from mint data (subgraph includes timestamp)
-        block_timestamp = mint.timestamp
-        
-        amount0_formatted = format_amount(mint.amount0, token0.decimals)
-        amount1_formatted = format_amount(mint.amount1, token1.decimals)
         
         # Include reserves if available from subgraph
         reserves = None
@@ -188,7 +169,7 @@ class SerializerService:
         return JoinExitEventWithBlock(
             block=Block(
                 blockNumber=mint.block_number,
-                blockTimestamp=block_timestamp
+                blockTimestamp=mint.block_timestamp
             ),
             eventType="join",
             txnId=mint.tx_hash,
@@ -196,8 +177,8 @@ class SerializerService:
             eventIndex=mint.log_index,
             maker=mint.tx_origin,
             pairId=mint.pool_address,
-            amount0=amount0_formatted,
-            amount1=amount1_formatted,
+            amount0=mint.amount0,
+            amount1=mint.amount1,
             reserves=reserves,
             metadata={
                 "network": mint.network
@@ -206,16 +187,6 @@ class SerializerService:
     
     async def serialize_burn_event(self, burn: AlgebraBurn) -> JoinExitEventWithBlock:
         """Convert Algebra burn to DEX Screener exit event"""
-        
-        # Now we have all token info directly from the burn event
-        token0 = burn.token0
-        token1 = burn.token1
-        
-        # Get block timestamp from burn data (subgraph includes timestamp)
-        block_timestamp = burn.timestamp
-        
-        amount0_formatted = format_amount(burn.amount0, token0.decimals)
-        amount1_formatted = format_amount(burn.amount1, token1.decimals)
         
         # Include reserves if available from subgraph
         reserves = None
@@ -230,7 +201,7 @@ class SerializerService:
         return JoinExitEventWithBlock(
             block=Block(
                 blockNumber=burn.block_number,
-                blockTimestamp=block_timestamp
+                blockTimestamp=burn.block_timestamp
             ),
             eventType="exit",
             txnId=burn.tx_hash,
@@ -238,8 +209,8 @@ class SerializerService:
             eventIndex=burn.log_index,
             maker=burn.tx_origin,  # Use transaction origin
             pairId=burn.pool_address,
-            amount0=amount0_formatted,
-            amount1=amount1_formatted,
+            amount0=burn.amount0,
+            amount1=burn.amount1,
             reserves=reserves,
             metadata={
                 "network": burn.network

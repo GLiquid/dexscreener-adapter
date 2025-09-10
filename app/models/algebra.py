@@ -53,9 +53,9 @@ class AlgebraSwap(BaseModel):
     sender: str
     recipient: str
     tx_origin: str  # Transaction origin (from field)
-    amount0: int
-    amount1: int
-    sqrt_price_x96: int
+    amount0: float
+    amount1: float
+    sqrt_price_x96: float
     liquidity: int
     tick: int
     network: str
@@ -79,8 +79,8 @@ class AlgebraMint(BaseModel):
     owner: str
     sender: str
     tx_origin: str  # Transaction origin (from field)
-    amount0: int
-    amount1: int
+    amount0: float
+    amount1: float
     tick_lower: int
     tick_upper: int
     amount: int  # liquidity amount
@@ -104,8 +104,8 @@ class AlgebraBurn(BaseModel):
     pool_address: str
     owner: str
     tx_origin: str  # Transaction origin (from field)
-    amount0: int
-    amount1: int
+    amount0: float
+    amount1: float
     tick_lower: int
     tick_upper: int
     amount: int  # liquidity amount

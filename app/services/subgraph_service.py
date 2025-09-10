@@ -82,7 +82,7 @@ class SubgraphService:
                 price
                 liquidity
                 tick
-                logIndex"""
+            """
         
         if include_reserves:
             return base_fields + """
@@ -118,7 +118,7 @@ class SubgraphService:
                 tickLower
                 tickUpper
                 amount
-                logIndex"""
+        """
         
         if include_reserves:
             return base_fields + """
@@ -153,7 +153,7 @@ class SubgraphService:
                 tickLower
                 tickUpper
                 amount
-                logIndex"""
+        """
         
         if include_reserves:
             return base_fields + """
@@ -367,7 +367,6 @@ class SubgraphService:
                             decimals=int(pool_data["token1"].get("decimals", 18)),
                             network=network
                         )
-                        print(swap_data)
                         swap = AlgebraSwap(
                             tx_hash=tx_id,
                             tx_index=0,
@@ -378,9 +377,9 @@ class SubgraphService:
                             sender=normalize_address(swap_data["sender"]),
                             recipient=normalize_address(swap_data["recipient"]),
                             tx_origin=normalize_address(swap_data["origin"]),
-                            amount0=int(float(swap_data["amount0"])),
-                            amount1=int(float(swap_data["amount1"])),
-                            sqrt_price_x96=int(swap_data["price"]),
+                            amount0=float(swap_data["amount0"]),
+                            amount1=float(swap_data["amount1"]),
+                            sqrt_price_x96=float(swap_data["price"]),
                             liquidity=int(swap_data["liquidity"]),
                             tick=int(swap_data["tick"]),
                             network=network,
@@ -395,7 +394,6 @@ class SubgraphService:
                     except Exception as e:
                         logger.error(f"Error parsing swap data: {e}")
                         continue
-                
                 # Process mints
                 for mint_data in tx_data.get("mints", []):
                     try:
@@ -426,8 +424,8 @@ class SubgraphService:
                             owner=normalize_address(mint_data["owner"]),
                             sender=normalize_address(mint_data["sender"]),
                             tx_origin=normalize_address(mint_data["origin"]),
-                            amount0=int(float(mint_data["amount0"])),
-                            amount1=int(float(mint_data["amount1"])),
+                            amount0=float(mint_data["amount0"]),
+                            amount1=float(mint_data["amount1"]),
                             tick_lower=int(mint_data["tickLower"]),
                             tick_upper=int(mint_data["tickUpper"]),
                             amount=int(float(mint_data["amount"])),
@@ -443,7 +441,6 @@ class SubgraphService:
                     except Exception as e:
                         logger.error(f"Error parsing mint data: {e}")
                         continue
-                
                 # Process burns
                 for burn_data in tx_data.get("burns", []):
                     try:
@@ -473,8 +470,8 @@ class SubgraphService:
                             pool_address=normalize_address(pool_data["id"]),
                             owner=normalize_address(burn_data["owner"]),
                             tx_origin=normalize_address(burn_data["origin"]),
-                            amount0=int(float(burn_data["amount0"])),
-                            amount1=int(float(burn_data["amount1"])),
+                            amount0=float(float(burn_data["amount0"])),
+                            amount1=float(float(burn_data["amount1"])),
                             tick_lower=int(burn_data["tickLower"]),
                             tick_upper=int(burn_data["tickUpper"]),
                             amount=int(float(burn_data["amount"])),
@@ -490,11 +487,9 @@ class SubgraphService:
                     except Exception as e:
                         logger.error(f"Error parsing burn data: {e}")
                         continue
-            
             last_id = batch[-1]["id"]
             if len(batch) < first:
                 break
-        
         return {
             "swaps": all_swaps,
             "mints": all_mints,
