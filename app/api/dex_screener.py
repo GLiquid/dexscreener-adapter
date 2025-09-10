@@ -25,11 +25,11 @@ async def get_latest_block_for_network(
             raise HTTPException(status_code=400, detail=f"Unsupported network: {network}")
         
         # Get latest block from subgraph
-        block_info = await subgraph_service.get_latest_block(network)
+        block_info = await subgraph_service.get_latest_transaction(network)
         if not block_info:
-            raise HTTPException(status_code=500, detail=f"Could not fetch latest block from {network}")
+            raise HTTPException(status_code=500, detail=f"Could not fetch latest transaction from {network}")
         
-        block = await serializer_service.serialize_block(network, block_info["blockNumber"])
+        block = await serializer_service.serialize_block(network, 0)  # block_number is ignored now
         response = LatestBlockResponse(block=block)
         return response.model_dump(exclude_none=True)
         

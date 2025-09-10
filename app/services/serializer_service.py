@@ -24,26 +24,24 @@ class SerializerService:
         """Convert block data to DEX Screener format"""
         
         try:
-            # Get latest block info from subgraph
-            latest_block = await subgraph_service.get_latest_block(network)
+            # Get latest transaction info from subgraph
+            latest_transaction = await subgraph_service.get_latest_transaction(network)
             
-            # If specific block requested and it's different from latest, try to get timestamp
-            if latest_block and latest_block["number"] >= block_number:
-                # Use subgraph's latest block timestamp as approximation
-                # For exact timestamp, would need additional subgraph query or RPC call
+            if latest_transaction:
                 return Block(
-                    blockNumber=block_number,
-                    blockTimestamp=latest_block["timestamp"]
+                    blockNumber=latest_transaction["blockNumber"],
+                    blockTimestamp=latest_transaction["blockTimestamp"]
                 )
             else:
-                # Return current block
+                # Fallback to latest block from meta if no transactions found
+                latest_block = await subgraph_service.get_latest_block(network)
                 return Block(
-                    blockNumber=latest_block["number"] if latest_block else block_number,
-                    blockTimestamp=latest_block["timestamp"] if latest_block else 0
+                    blockNumber=latest_block["blockNumber"] if latest_block else block_number,
+                    blockTimestamp=latest_block["blockTimestamp"] if latest_block else 0
                 )
         
         except Exception as e:
-            logger.error(f"Error fetching block data from subgraph: {e}")
+            logger.error(f"Error fetching latest transaction data from subgraph: {e}")
             return Block(
                 blockNumber=block_number,
                 blockTimestamp=0

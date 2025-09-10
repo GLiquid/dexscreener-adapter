@@ -212,6 +212,30 @@ class SubgraphService:
             }
         return None
     
+    async def get_latest_transaction(self, network: str) -> Optional[Dict]:
+        """Get latest transaction from subgraph"""
+        query = """
+        query GetLatestTransaction {
+            transactions(
+                first: 1,
+                orderBy: blockNumber,
+                orderDirection: desc
+            ) {
+                id
+                blockNumber
+                timestamp
+            }
+        }
+        """
+        
+        result = await self.query_subgraph(network, query)
+        if result and "transactions" in result and result["transactions"]:
+            tx_data = result["transactions"][0]
+            return {
+                "blockNumber": int(tx_data["blockNumber"]),
+                "blockTimestamp": int(tx_data["timestamp"])
+            }
+        return None
 
     
     async def get_pool_with_tokens(self, network: str, pool_address: str) -> Optional[AlgebraPoolWithTokens]:
