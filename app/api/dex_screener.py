@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get("/{network}/latest-block")
 async def get_latest_block_for_network(
     network: str = Path(..., description="Network name")
-) -> LatestBlockResponse:
+) -> dict:
     """Get the latest block number for specific network"""
     try:
         if network not in settings.active_networks:
@@ -30,7 +30,8 @@ async def get_latest_block_for_network(
             raise HTTPException(status_code=500, detail=f"Could not fetch latest block from {network}")
         
         block = await serializer_service.serialize_block(network, block_info["blockNumber"])
-        return LatestBlockResponse(block=block)
+        response = LatestBlockResponse(block=block)
+        return response.model_dump(exclude_none=True)
         
     except HTTPException:
         raise
@@ -43,7 +44,7 @@ async def get_latest_block_for_network(
 async def get_asset(
     network: str = Path(..., description="Network name"),
     id: str = Query(..., description="Token address")
-) -> AssetResponse:
+) -> dict:
     """Get asset information by token address"""
     try:
         if network not in settings.active_networks:
@@ -54,7 +55,8 @@ async def get_asset(
         
         address = normalize_address(id)
         asset = await serializer_service.serialize_asset(network, address)
-        return AssetResponse(asset=asset)
+        response = AssetResponse(asset=asset)
+        return response.model_dump(exclude_none=True)
         
     except HTTPException:
         raise
@@ -67,7 +69,7 @@ async def get_asset(
 async def get_pair(
     network: str = Path(..., description="Network name"),
     id: str = Query(..., description="Pool address")
-) -> PairResponse:
+) -> dict:
     """Get pair information by pool address"""
     try:
         if network not in settings.active_networks:
@@ -78,7 +80,8 @@ async def get_pair(
         
         address = normalize_address(id)
         pair = await serializer_service.serialize_pair(network, address)
-        return PairResponse(pair=pair)
+        response = PairResponse(pair=pair)
+        return response.model_dump(exclude_none=True)
         
     except HTTPException:
         raise

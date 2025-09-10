@@ -60,11 +60,7 @@ class SerializerService:
         asset_data = {
             "id": token.address,
             "name": token.name,
-            "symbol": token.symbol,
-            "metadata": {
-                "network": network,
-                "decimals": str(token.decimals)
-            }
+            "symbol": token.symbol
         }
         
         # Only add totalSupply if it has a value
@@ -94,15 +90,7 @@ class SerializerService:
             "id": pool_info.address,
             "dexKey": f"{self.dex_key}-{network}",
             "asset0Id": token0.address,
-            "asset1Id": token1.address,
-            "metadata": {
-                "network": network,
-                "tickSpacing": str(pool_info.tick_spacing),
-                "token0Symbol": token0.symbol,
-                "token1Symbol": token1.symbol,
-                "token0Decimals": str(token0.decimals),
-                "token1Decimals": str(token1.decimals)
-            }
+            "asset1Id": token1.address
         }
         
         # Only add optional fields if they have values
@@ -158,10 +146,7 @@ class SerializerService:
             "eventIndex": swap.log_index,
             "maker": swap.tx_origin,
             "pairId": swap.pool_address,
-            "priceNative": price_native,
-            "metadata": {
-                "network": swap.network
-            }
+            "priceNative": price_native
         }
         
         # Only add asset amounts if they have values
@@ -205,10 +190,7 @@ class SerializerService:
             "maker": mint.tx_origin,
             "pairId": mint.pool_address,
             "amount0": f"{mint.amount0:.18f}".rstrip('0').rstrip('.'),
-            "amount1": f"{mint.amount1:.18f}".rstrip('0').rstrip('.'),
-            "metadata": {
-                "network": mint.network
-            }
+            "amount1": f"{mint.amount1:.18f}".rstrip('0').rstrip('.')
         }
         
         # Only add reserves if available
@@ -243,10 +225,7 @@ class SerializerService:
             "maker": burn.tx_origin,
             "pairId": burn.pool_address,
             "amount0": f"{burn.amount0:.18f}".rstrip('0').rstrip('.'),
-            "amount1": f"{burn.amount1:.18f}".rstrip('0').rstrip('.'),
-            "metadata": {
-                "network": burn.network
-            }
+            "amount1": f"{burn.amount1:.18f}".rstrip('0').rstrip('.')
         }
         
         # Only add reserves if available
