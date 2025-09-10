@@ -21,7 +21,7 @@ cp .env.example .env
 
 2. **Start Services:**
 ```bash
-docker-compose up -d
+docker compose up --build -d
 ```
 
 3. **Test API:**
@@ -123,24 +123,24 @@ curl "http://localhost:8000/dex/ethereum/events?fromBlock=18700000&toBlock=18700
 ### Check Status (Docker)
 ```bash
 # Service status
-docker-compose ps
+docker compose ps
 
 # Logs
-docker-compose logs -f dex-adapter
-docker-compose logs -f nginx
+docker compose logs -f dex-adapter
+docker compose logs -f nginx
 ```
 
 ### Restart Services
 ```bash
 # Restart all
-docker-compose restart
+docker compose restart
 
 # Restart specific service
-docker-compose restart dex-adapter
+docker compose restart dex-adapter
 
 # Full rebuild
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ## Development
