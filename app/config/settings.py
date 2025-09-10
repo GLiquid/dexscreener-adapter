@@ -1,27 +1,29 @@
 import os
 from typing import Dict, List, Optional
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # API Configuration - read from .env
+    # API Configuration - must be provided via .env
     log_level: str
     max_block_range: int
     
-    # Network Configuration - read from .env
-    networks: str  # Comma-separated list of networks
-    network: Optional[str] = None  # Single network mode when set
-    
-    # Subgraph URLs - dynamically based on networks
-    # These will be read from .env with pattern: {NETWORK}_SUBGRAPH_URL
+    # Network Configuration - must be provided via .env
+    networks: str
+    network: Optional[str] = None
     
     # Schema configuration - optional manual override
     # Format: network1:v1,network2:v2 where v1/v2 are schema versions
     subgraph_schemas: Optional[str] = None
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=True,
+        env_prefix="",  # No prefix for env vars
+    )
     
     @property
     def networks_list(self) -> List[str]:
