@@ -108,17 +108,18 @@ class SerializerService:
     async def serialize_swap_event(self, swap: AlgebraSwap) -> SwapEventWithBlock:
         """Convert Algebra swap to DEX Screener swap event"""
         
-        # Format amounts
-        amount0_formatted = swap.amount0
-        amount1_formatted = swap.amount1
-        # Determine direction (which token is in vs out)
-        asset0_in = amount0_formatted if swap.amount0 > 0 else None
-        asset0_out = amount0_formatted if swap.amount0 < 0 else None
-        asset1_in = amount1_formatted if swap.amount1 > 0 else None
-        asset1_out = amount1_formatted if swap.amount1 < 0 else None
+        # Format amounts - use absolute values for in/out amounts
+        amount0_abs = abs(swap.amount0)
+        amount1_abs = abs(swap.amount1)
         
-        # Calculate price (price of token0 in terms of token1)
-        price_native = amount0_formatted/amount1_formatted
+        # Determine direction (which token is in vs out)
+        asset0_in = amount0_abs if swap.amount0 > 0 else None
+        asset0_out = amount0_abs if swap.amount0 < 0 else None
+        asset1_in = amount1_abs if swap.amount1 > 0 else None
+        asset1_out = amount1_abs if swap.amount1 < 0 else None
+        
+        # Calculate price (price of token0 in terms of token1) - always positive
+        price_native = abs(swap.amount0 / swap.amount1) if swap.amount1 != 0 else 0
         
         # Include reserves if available from subgraph
         reserves = None
