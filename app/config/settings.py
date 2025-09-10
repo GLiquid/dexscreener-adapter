@@ -1,29 +1,29 @@
 import os
 from typing import Dict, List, Optional
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
 
+load_dotenv()
 
-class Settings(BaseSettings):
-    # API Configuration - must be provided via .env
-    log_level: str
-    max_block_range: int
+class Settings:
+    """Configuration settings loaded from environment variables"""
     
-    # Network Configuration - must be provided via .env
-    networks: str
-    network: Optional[str] = None
+    def __init__(self):
+        # API Configuration
+        self.log_level = self._get_required_env("LOG_LEVEL")
+        self.max_block_range = int(self._get_required_env("MAX_BLOCK_RANGE"))
+        
+        # Network Configuration
+        self.networks = self._get_required_env("NETWORKS")
+        self.network = os.getenv("NETWORK")  
+        
+        # Schema configuration
+        self.subgraph_schemas = os.getenv("SUBGRAPH_SCHEMAS")
     
-    # Schema configuration - optional manual override
-    # Format: network1:v1,network2:v2 where v1/v2 are schema versions
-    subgraph_schemas: Optional[str] = None
-    
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        case_sensitive=True,
-        env_prefix="",  # No prefix for env vars
-    )
+    def _get_required_env(self, key: str) -> str:
+        value = os.getenv(key)
+        if value is None:
+            raise ValueError(f"Required environment variable {key} is not set")
+        return value
     
     @property
     def networks_list(self) -> List[str]:
@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     def get_subgraph_url(self, network: str) -> str:
         """Get subgraph URL for specific network from environment variables"""
         env_var_name = f"{network.upper()}_SUBGRAPH_URL"
-        return os.getenv(env_var_name, "")
+        url = os.getenv(env_var_name, "")
+        if not url:
+            raise ValueError(f"Subgraph URL for network '{network}' not found. Please set {env_var_name} in .env file")
+        return url
     
     def get_subgraph_schema_version(self, network: str) -> Optional[str]:
         """Get manually configured schema version for network, if any"""
@@ -56,5 +59,26 @@ class Settings(BaseSettings):
         
         return schema_mappings.get(network)
 
+
+def validate_settings() -> None:
+    """Validate that all required settings are properly configured"""
+    try:
+        settings = Settings()
+        print(f"✅ Settings validation passed!")
+        print(f"   Networks: {settings.active_networks}")
+        print(f"   Log level: {settings.log_level}")
+        print(f"   Max block range: {settings.max_block_range}")
+        
+
+        for network in settings.active_networks:
+            try:
+                url = settings.get_subgraph_url(network)
+                print(f"   {network.upper()}_SUBGRAPH_URL: ✅")
+            except Exception as e:
+                print(f"   {network.upper()}_SUBGRAPH_URL: ❌ {e}")
+                
+    except Exception as e:
+        print(f"❌ Settings validation failed: {e}")
+        raise
 
 settings = Settings()
