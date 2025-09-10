@@ -75,10 +75,11 @@ class SubgraphService:
                     fee
                 }
                 sender
+                origin
                 recipient
                 amount0
                 amount1
-                sqrtPriceX96
+                price
                 liquidity
                 tick
                 logIndex"""
@@ -111,6 +112,7 @@ class SubgraphService:
                 }
                 owner
                 sender
+                origin
                 amount0
                 amount1
                 tickLower
@@ -145,6 +147,7 @@ class SubgraphService:
                     fee
                 }
                 owner
+                origin
                 amount0
                 amount1
                 tickLower
@@ -157,6 +160,7 @@ class SubgraphService:
                 reserves0
                 reserves1"""
         return base_fields
+    
     async def query_subgraph(self, network: str, query: str, variables: Optional[Dict] = None) -> Optional[Dict]:
         """Execute GraphQL query against subgraph"""
         subgraph_url = settings.get_subgraph_url(network)
@@ -295,6 +299,7 @@ class SubgraphService:
         swap_fields = self._get_swap_query_fields(include_reserves).strip()
         mint_fields = self._get_mint_query_fields(include_reserves).strip()
         burn_fields = self._get_burn_query_fields(include_reserves).strip()
+
         
         query = f"""
         query GetAllEvents($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
@@ -311,7 +316,6 @@ class SubgraphService:
                 id
                 blockNumber
                 timestamp
-                from
                 swaps {{{swap_fields}
                 }}
                 mints {{{mint_fields}
@@ -343,7 +347,6 @@ class SubgraphService:
                 tx_id = tx_data["id"]
                 block_number = int(tx_data["blockNumber"])
                 timestamp = int(tx_data["timestamp"])
-                tx_from = tx_data["from"]
                 
                 # Process swaps
                 for swap_data in tx_data.get("swaps", []):
@@ -364,7 +367,7 @@ class SubgraphService:
                             decimals=int(pool_data["token1"].get("decimals", 18)),
                             network=network
                         )
-                        
+                        print(swap_data)
                         swap = AlgebraSwap(
                             tx_hash=tx_id,
                             tx_index=0,
@@ -374,10 +377,10 @@ class SubgraphService:
                             pool_address=normalize_address(pool_data["id"]),
                             sender=normalize_address(swap_data["sender"]),
                             recipient=normalize_address(swap_data["recipient"]),
-                            tx_origin=normalize_address(tx_from),
+                            tx_origin=normalize_address(swap_data["origin"]),
                             amount0=int(float(swap_data["amount0"])),
                             amount1=int(float(swap_data["amount1"])),
-                            sqrt_price_x96=int(swap_data["sqrtPriceX96"]),
+                            sqrt_price_x96=int(swap_data["price"]),
                             liquidity=int(swap_data["liquidity"]),
                             tick=int(swap_data["tick"]),
                             network=network,
@@ -422,7 +425,7 @@ class SubgraphService:
                             pool_address=normalize_address(pool_data["id"]),
                             owner=normalize_address(mint_data["owner"]),
                             sender=normalize_address(mint_data["sender"]),
-                            tx_origin=normalize_address(tx_from),
+                            tx_origin=normalize_address(mint_data["origin"]),
                             amount0=int(float(mint_data["amount0"])),
                             amount1=int(float(mint_data["amount1"])),
                             tick_lower=int(mint_data["tickLower"]),
@@ -469,7 +472,7 @@ class SubgraphService:
                             block_timestamp=timestamp,
                             pool_address=normalize_address(pool_data["id"]),
                             owner=normalize_address(burn_data["owner"]),
-                            tx_origin=normalize_address(tx_from),
+                            tx_origin=normalize_address(burn_data["origin"]),
                             amount0=int(float(burn_data["amount0"])),
                             amount1=int(float(burn_data["amount1"])),
                             tick_lower=int(burn_data["tickLower"]),
