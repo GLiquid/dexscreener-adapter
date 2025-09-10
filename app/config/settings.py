@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Subgraph URLs - dynamically based on networks
     # These will be read from .env with pattern: {NETWORK}_SUBGRAPH_URL
     
+    # Schema configuration - optional manual override
+    # Format: network1:v1,network2:v2 where v1/v2 are schema versions
+    subgraph_schemas: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -36,6 +40,19 @@ class Settings(BaseSettings):
         """Get subgraph URL for specific network from environment variables"""
         env_var_name = f"{network.upper()}_SUBGRAPH_URL"
         return os.getenv(env_var_name, "")
+    
+    def get_subgraph_schema_version(self, network: str) -> Optional[str]:
+        """Get manually configured schema version for network, if any"""
+        if not self.subgraph_schemas:
+            return None
+        
+        schema_mappings = {}
+        for mapping in self.subgraph_schemas.split(","):
+            if ":" in mapping:
+                net, version = mapping.strip().split(":", 1)
+                schema_mappings[net.strip()] = version.strip()
+        
+        return schema_mappings.get(network)
 
 
 settings = Settings()

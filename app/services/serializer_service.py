@@ -142,8 +142,15 @@ class SerializerService:
             swap.sqrt_price_x96, token0.decimals, token1.decimals
         )
         
-        # TODO: Calculate reserves if needed (requires additional contract calls)
+        # Include reserves if available from subgraph
         reserves = None
+        if swap.reserves0 is not None and swap.reserves1 is not None:
+            # Reserves come in decimal format from subgraph (e.g., 0.0001)
+            # Convert to string for DEX Screener API
+            reserves = Reserves(
+                asset0=str(swap.reserves0),
+                asset1=str(swap.reserves1)
+            )
         
         return SwapEventWithBlock(
             block=Block(
@@ -186,6 +193,16 @@ class SerializerService:
         amount0_formatted = format_amount(mint.amount0, token0.decimals)
         amount1_formatted = format_amount(mint.amount1, token1.decimals)
         
+        # Include reserves if available from subgraph
+        reserves = None
+        if mint.reserves0 is not None and mint.reserves1 is not None:
+            # Reserves come in decimal format from subgraph (e.g., 0.0001)
+            # Convert to string for DEX Screener API
+            reserves = Reserves(
+                asset0=str(mint.reserves0),
+                asset1=str(mint.reserves1)
+            )
+        
         return JoinExitEventWithBlock(
             block=Block(
                 blockNumber=mint.block_number,
@@ -199,6 +216,7 @@ class SerializerService:
             pairId=mint.pool_address,
             amount0=amount0_formatted,
             amount1=amount1_formatted,
+            reserves=reserves,
             metadata={
                 "network": mint.network
             }
@@ -223,6 +241,16 @@ class SerializerService:
         amount0_formatted = format_amount(burn.amount0, token0.decimals)
         amount1_formatted = format_amount(burn.amount1, token1.decimals)
         
+        # Include reserves if available from subgraph
+        reserves = None
+        if burn.reserves0 is not None and burn.reserves1 is not None:
+            # Reserves come in decimal format from subgraph (e.g., 0.0001)
+            # Convert to string for DEX Screener API
+            reserves = Reserves(
+                asset0=str(burn.reserves0),
+                asset1=str(burn.reserves1)
+            )
+        
         return JoinExitEventWithBlock(
             block=Block(
                 blockNumber=burn.block_number,
@@ -236,6 +264,7 @@ class SerializerService:
             pairId=burn.pool_address,
             amount0=amount0_formatted,
             amount1=amount1_formatted,
+            reserves=reserves,
             metadata={
                 "network": burn.network
             }

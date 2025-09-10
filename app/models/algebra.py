@@ -44,6 +44,9 @@ class AlgebraSwap(BaseModel):
     liquidity: int
     tick: int
     network: str
+    # Optional reserves fields (for V2 subgraphs) - in decimal format
+    reserves0: Optional[float] = None
+    reserves1: Optional[float] = None
 
 
 class AlgebraMint(BaseModel):
@@ -63,6 +66,9 @@ class AlgebraMint(BaseModel):
     tick_upper: int
     amount: int  # liquidity amount
     network: str
+    # Optional reserves fields (for V2 subgraphs) - in decimal format
+    reserves0: Optional[float] = None
+    reserves1: Optional[float] = None
 
 
 class AlgebraBurn(BaseModel):
@@ -81,3 +87,6 @@ class AlgebraBurn(BaseModel):
     tick_upper: int
     amount: int  # liquidity amount
     network: str
+    # Optional reserves fields (for V2 subgraphs) - in decimal format
+    reserves0: Optional[float] = None
+    reserves1: Optional[float] = None

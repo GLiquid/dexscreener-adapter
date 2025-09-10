@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 from app.config import settings
 from app.models import AlgebraPool, Token, AlgebraSwap, AlgebraMint, AlgebraBurn
 from app.utils import normalize_address
+from app.services.schema_detector import schema_detector, SubgraphSchemaVersion
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class SubgraphService:
     
     def __init__(self):
         self._session: Optional[aiohttp.ClientSession] = None
+        self._schema_versions: Dict[str, SubgraphSchemaVersion] = {}
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
@@ -28,6 +30,94 @@ class SubgraphService:
         if self._session and not self._session.closed:
             await self._session.close()
     
+    async def _ensure_schema_detected(self, network: str) -> SubgraphSchemaVersion:
+        """Ensure schema version is detected for network"""
+        if network in self._schema_versions:
+            return self._schema_versions[network]
+        
+        # Check for manual config override
+        manual_version = settings.get_subgraph_schema_version(network)
+        if manual_version:
+            if manual_version.lower() == "v2":
+                version = SubgraphSchemaVersion.V2_WITH_RESERVES
+            else:
+                version = SubgraphSchemaVersion.V1_NO_RESERVES
+            
+            schema_detector.set_manual_schema(network, settings.get_subgraph_url(network), version)
+            self._schema_versions[network] = version
+            return version
+        
+        # Auto-detect schema
+        session = await self._get_session()
+        subgraph_url = settings.get_subgraph_url(network)
+        version = await schema_detector.detect_schema_version(session, subgraph_url, network)
+        self._schema_versions[network] = version
+        return version
+    
+    def _get_swap_query_fields(self, include_reserves: bool) -> str:
+        """Get swap query fields based on schema version"""
+        base_fields = """
+                id
+                pool {
+                    id
+                }
+                sender
+                recipient
+                amount0
+                amount1
+                sqrtPriceX96
+                liquidity
+                tick
+                logIndex"""
+        
+        if include_reserves:
+            return base_fields + """
+                reserves0
+                reserves1"""
+        return base_fields
+    
+    def _get_mint_query_fields(self, include_reserves: bool) -> str:
+        """Get mint query fields based on schema version"""
+        base_fields = """
+                id
+                pool {
+                    id
+                }
+                owner
+                sender
+                amount0
+                amount1
+                tickLower
+                tickUpper
+                amount
+                logIndex"""
+        
+        if include_reserves:
+            return base_fields + """
+                reserves0
+                reserves1"""
+        return base_fields
+    
+    def _get_burn_query_fields(self, include_reserves: bool) -> str:
+        """Get burn query fields based on schema version"""
+        base_fields = """
+                id
+                pool {
+                    id
+                }
+                owner
+                amount0
+                amount1
+                tickLower
+                tickUpper
+                amount
+                logIndex"""
+        
+        if include_reserves:
+            return base_fields + """
+                reserves0
+                reserves1"""
+        return base_fields
     async def query_subgraph(self, network: str, query: str, variables: Optional[Dict] = None) -> Optional[Dict]:
         """Execute GraphQL query against subgraph"""
         subgraph_url = settings.get_subgraph_url(network)
@@ -168,41 +258,186 @@ class SubgraphService:
         
         return None
     
-    async def get_swaps(self, network: str, from_block: int, to_block: int, first: int = 1000) -> List[AlgebraSwap]:
-        """Get swap events from subgraph using cursor-based pagination"""
-        query = """
-        query GetSwaps($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {
-            swaps(
-                where: {
+    async def get_all_events(self, network: str, from_block: int, to_block: int, first: int = 1000) -> Dict[str, List]:
+        """Get all events (swaps, mints, burns) from subgraph using cursor-based pagination"""
+        # Detect schema version
+        schema_version = await self._ensure_schema_detected(network)
+        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
+        
+        # Build query fields for each event type
+        swap_fields = self._get_swap_query_fields(include_reserves).strip()
+        mint_fields = self._get_mint_query_fields(include_reserves).strip()
+        burn_fields = self._get_burn_query_fields(include_reserves).strip()
+        
+        query = f"""
+        query GetAllEvents($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
+            transactions(
+                where: {{
                     blockNumber_gte: $fromBlock,
                     blockNumber_lte: $toBlock,
                     id_gt: $lastId
-                },
+                }},
                 first: $first,
                 orderBy: id,
                 orderDirection: asc
-            ) {
+            ) {{
                 id
-                transaction {
-                    id
-                    blockNumber
-                    timestamp
-                    from
-                }
-                pool {
-                    id
-                }
-                sender
-                recipient
-                amount0
-                amount1
-                sqrtPriceX96
-                liquidity
-                tick
-                logIndex
-            }
-        }
+                blockNumber
+                timestamp
+                from
+                swaps {{{swap_fields}
+                }}
+                mints {{{mint_fields}
+                }}
+                burns {{{burn_fields}
+                }}
+            }}
+        }}
         """
+        
+        all_swaps = []
+        all_mints = []
+        all_burns = []
+        last_id = ""
+        
+        while True:
+            variables = {
+                "fromBlock": from_block,
+                "toBlock": to_block,
+                "first": first,
+                "lastId": last_id
+            }
+            result = await self.query_subgraph(network, query, variables)
+            batch = result["transactions"] if result and "transactions" in result else []
+            if not batch:
+                break
+            
+            for tx_data in batch:
+                tx_id = tx_data["id"]
+                block_number = int(tx_data["blockNumber"])
+                timestamp = int(tx_data["timestamp"])
+                tx_from = tx_data["from"]
+                
+                # Process swaps
+                for swap_data in tx_data.get("swaps", []):
+                    try:
+                        swap = AlgebraSwap(
+                            tx_hash=tx_id,
+                            tx_index=0,
+                            log_index=int(swap_data.get("logIndex", 0)),
+                            block_number=block_number,
+                            block_timestamp=timestamp,
+                            pool_address=normalize_address(swap_data["pool"]["id"]),
+                            sender=normalize_address(swap_data["sender"]),
+                            recipient=normalize_address(swap_data["recipient"]),
+                            tx_origin=normalize_address(tx_from),
+                            amount0=int(float(swap_data["amount0"])),
+                            amount1=int(float(swap_data["amount1"])),
+                            sqrt_price_x96=int(swap_data["sqrtPriceX96"]),
+                            liquidity=int(swap_data["liquidity"]),
+                            tick=int(swap_data["tick"]),
+                            network=network,
+                            # Include reserves if available (already in decimal format)
+                            reserves0=float(swap_data["reserves0"]) if include_reserves and swap_data.get("reserves0") else None,
+                            reserves1=float(swap_data["reserves1"]) if include_reserves and swap_data.get("reserves1") else None
+                        )
+                        all_swaps.append(swap)
+                    except Exception as e:
+                        logger.error(f"Error parsing swap data: {e}")
+                        continue
+                
+                # Process mints
+                for mint_data in tx_data.get("mints", []):
+                    try:
+                        mint = AlgebraMint(
+                            tx_hash=tx_id,
+                            tx_index=0,
+                            log_index=int(mint_data.get("logIndex", 0)),
+                            block_number=block_number,
+                            block_timestamp=timestamp,
+                            pool_address=normalize_address(mint_data["pool"]["id"]),
+                            owner=normalize_address(mint_data["owner"]),
+                            sender=normalize_address(mint_data["sender"]),
+                            tx_origin=normalize_address(tx_from),
+                            amount0=int(float(mint_data["amount0"])),
+                            amount1=int(float(mint_data["amount1"])),
+                            tick_lower=int(mint_data["tickLower"]),
+                            tick_upper=int(mint_data["tickUpper"]),
+                            amount=int(float(mint_data["amount"])),
+                            network=network,
+                            # Include reserves if available (already in decimal format)
+                            reserves0=float(mint_data["reserves0"]) if include_reserves and mint_data.get("reserves0") else None,
+                            reserves1=float(mint_data["reserves1"]) if include_reserves and mint_data.get("reserves1") else None
+                        )
+                        all_mints.append(mint)
+                    except Exception as e:
+                        logger.error(f"Error parsing mint data: {e}")
+                        continue
+                
+                # Process burns
+                for burn_data in tx_data.get("burns", []):
+                    try:
+                        burn = AlgebraBurn(
+                            tx_hash=tx_id,
+                            tx_index=0,
+                            log_index=int(burn_data.get("logIndex", 0)),
+                            block_number=block_number,
+                            block_timestamp=timestamp,
+                            pool_address=normalize_address(burn_data["pool"]["id"]),
+                            owner=normalize_address(burn_data["owner"]),
+                            tx_origin=normalize_address(tx_from),
+                            amount0=int(float(burn_data["amount0"])),
+                            amount1=int(float(burn_data["amount1"])),
+                            tick_lower=int(burn_data["tickLower"]),
+                            tick_upper=int(burn_data["tickUpper"]),
+                            amount=int(float(burn_data["amount"])),
+                            network=network,
+                            # Include reserves if available (already in decimal format)
+                            reserves0=float(burn_data["reserves0"]) if include_reserves and burn_data.get("reserves0") else None,
+                            reserves1=float(burn_data["reserves1"]) if include_reserves and burn_data.get("reserves1") else None
+                        )
+                        all_burns.append(burn)
+                    except Exception as e:
+                        logger.error(f"Error parsing burn data: {e}")
+                        continue
+            
+            last_id = batch[-1]["id"]
+            if len(batch) < first:
+                break
+        
+        return {
+            "swaps": all_swaps,
+            "mints": all_mints,
+            "burns": all_burns
+        }
+        """Get swap events from subgraph using cursor-based pagination via transactions"""
+        # Detect schema version
+        schema_version = await self._ensure_schema_detected(network)
+        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
+        
+        swap_fields = self._get_swap_query_fields(include_reserves)
+        query = f"""
+        query GetSwaps($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
+            transactions(
+                where: {{
+                    blockNumber_gte: $fromBlock,
+                    blockNumber_lte: $toBlock,
+                    id_gt: $lastId
+                }},
+                first: $first,
+                orderBy: id,
+                orderDirection: asc
+            ) {{
+                id
+                blockNumber
+                timestamp
+                from
+                swaps {{{swap_fields}
+                }}
+            }}
+        }}
+        """
+        
         swaps = []
         last_id = ""
         while True:
@@ -213,73 +448,68 @@ class SubgraphService:
                 "lastId": last_id
             }
             result = await self.query_subgraph(network, query, variables)
-            batch = result["swaps"] if result and "swaps" in result else []
+            batch = result["transactions"] if result and "transactions" in result else []
             if not batch:
                 break
-            for swap_data in batch:
-                try:
-                    tx_data = swap_data["transaction"]
-                    swap = AlgebraSwap(
-                        tx_hash=tx_data["id"],
-                        tx_index=0,
-                        log_index=int(swap_data.get("logIndex", 0)),
-                        block_number=int(tx_data["blockNumber"]),
-                        block_timestamp=int(tx_data["timestamp"]),
-                        pool_address=normalize_address(swap_data["pool"]["id"]),
-                        sender=normalize_address(swap_data["sender"]),
-                        recipient=normalize_address(swap_data["recipient"]),
-                        tx_origin=normalize_address(tx_data["from"]),
-                        amount0=int(float(swap_data["amount0"])),
-                        amount1=int(float(swap_data["amount1"])),
-                        sqrt_price_x96=int(swap_data["sqrtPriceX96"]),
-                        liquidity=int(swap_data["liquidity"]),
-                        tick=int(swap_data["tick"]),
-                        network=network
-                    )
-                    swaps.append(swap)
-                except Exception as e:
-                    logger.error(f"Error parsing swap data: {e}")
-                    continue
-            last_id = batch[-1]["id"]
+            
+            for tx_data in batch:
+                tx_swaps = tx_data.get("swaps", [])
+                for swap_data in tx_swaps:
+                    try:
+                        swap = AlgebraSwap(
+                            tx_hash=tx_data["id"],
+                            tx_index=0,
+                            log_index=int(swap_data.get("logIndex", 0)),
+                            block_number=int(tx_data["blockNumber"]),
+                            block_timestamp=int(tx_data["timestamp"]),
+                            pool_address=normalize_address(swap_data["pool"]["id"]),
+                            sender=normalize_address(swap_data["sender"]),
+                            recipient=normalize_address(swap_data["recipient"]),
+                            tx_origin=normalize_address(tx_data["from"]),
+                            amount0=int(float(swap_data["amount0"])),
+                            amount1=int(float(swap_data["amount1"])),
+                            sqrt_price_x96=int(swap_data["sqrtPriceX96"]),
+                            liquidity=int(swap_data["liquidity"]),
+                            tick=int(swap_data["tick"]),
+                            network=network,
+                            # Include reserves if available (already in decimal format)
+                            reserves0=float(swap_data["reserves0"]) if include_reserves and swap_data.get("reserves0") else None,
+                            reserves1=float(swap_data["reserves1"]) if include_reserves and swap_data.get("reserves1") else None
+                        )
+                        swaps.append(swap)
+                    except Exception as e:
+                        logger.error(f"Error parsing swap data: {e}")
+                        continue
+            
+            if batch:
+                last_id = batch[-1]["id"]
             if len(batch) < first:
                 break
         return swaps
     
     async def get_mints(self, network: str, from_block: int, to_block: int, first: int = 1000) -> List[AlgebraMint]:
         """Get mint events from subgraph using cursor-based pagination"""
-        query = """
-        query GetMints($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {
+        # Detect schema version
+        schema_version = await self._ensure_schema_detected(network)
+        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
+        
+        query_fields = self._get_mint_query_fields(include_reserves)
+        query = f"""
+        query GetMints($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
             mints(
-                where: {
+                where: {{
                     blockNumber_gte: $fromBlock,
                     blockNumber_lte: $toBlock,
                     id_gt: $lastId
-                },
+                }},
                 first: $first,
                 orderBy: id,
                 orderDirection: asc
-            ) {
-                id
-                transaction {
-                    id
-                    blockNumber
-                    timestamp
-                    from
-                }
-                pool {
-                    id
-                }
-                owner
-                sender
-                amount0
-                amount1
-                tickLower
-                tickUpper
-                amount
-                logIndex
-            }
-        }
+            ) {{{query_fields}
+            }}
+        }}
         """
+        
         mints = []
         last_id = ""
         while True:
@@ -311,7 +541,10 @@ class SubgraphService:
                         tick_lower=int(mint_data["tickLower"]),
                         tick_upper=int(mint_data["tickUpper"]),
                         amount=int(float(mint_data["amount"])),
-                        network=network
+                        network=network,
+                        # Include reserves if available (already in decimal format)
+                        reserves0=float(mint_data["reserves0"]) if include_reserves and mint_data.get("reserves0") else None,
+                        reserves1=float(mint_data["reserves1"]) if include_reserves and mint_data.get("reserves1") else None
                     )
                     mints.append(mint)
                 except Exception as e:
@@ -324,38 +557,27 @@ class SubgraphService:
     
     async def get_burns(self, network: str, from_block: int, to_block: int, first: int = 1000) -> List[AlgebraBurn]:
         """Get burn events from subgraph using cursor-based pagination"""
-        query = """
-        query GetBurns($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {
+        # Detect schema version
+        schema_version = await self._ensure_schema_detected(network)
+        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
+        
+        query_fields = self._get_burn_query_fields(include_reserves)
+        query = f"""
+        query GetBurns($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
             burns(
-                where: {
+                where: {{
                     blockNumber_gte: $fromBlock,
                     blockNumber_lte: $toBlock,
                     id_gt: $lastId
-                },
+                }},
                 first: $first,
                 orderBy: id,
                 orderDirection: asc
-            ) {
-                id
-                transaction {
-                    id
-                    blockNumber
-                    timestamp
-                    from
-                }
-                pool {
-                    id
-                }
-                owner
-                amount0
-                amount1
-                tickLower
-                tickUpper
-                amount
-                logIndex
-            }
-        }
+            ) {{{query_fields}
+            }}
+        }}
         """
+        
         burns = []
         last_id = ""
         while True:
@@ -386,7 +608,10 @@ class SubgraphService:
                         tick_lower=int(burn_data["tickLower"]),
                         tick_upper=int(burn_data["tickUpper"]),
                         amount=int(float(burn_data["amount"])),
-                        network=network
+                        network=network,
+                        # Include reserves if available (already in decimal format)
+                        reserves0=float(burn_data["reserves0"]) if include_reserves and burn_data.get("reserves0") else None,
+                        reserves1=float(burn_data["reserves1"]) if include_reserves and burn_data.get("reserves1") else None
                     )
                     burns.append(burn)
                 except Exception as e:
