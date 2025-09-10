@@ -163,7 +163,7 @@ async def get_events(
             event.eventIndex = event_index
             event_index += 1
         
-        return {"events": [event.dict() for event in all_events]}
+        return {"events": [event.model_dump(exclude_none=True) for event in all_events]}
         
     except HTTPException:
         raise

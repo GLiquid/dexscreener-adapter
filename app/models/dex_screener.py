@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BaseModelWithConfig(BaseModel):
-    model_config = ConfigDict(exclude_none=True)
+    model_config = ConfigDict(exclude_none=True, use_enum_values=True)
 
 
 class Block(BaseModelWithConfig):
