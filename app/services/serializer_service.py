@@ -2,12 +2,12 @@ import logging
 from typing import List, Optional, Dict, Union
 from app.models import (
     Block, Asset, Pair, SwapEventWithBlock, JoinExitEventWithBlock,
-    AlgebraSwap, AlgebraMint, AlgebraBurn, AlgebraToken, AlgebraPool,
+    AlgebraSwap, AlgebraMint, AlgebraBurn, Token, AlgebraPool,
     Reserves
 )
-from app.services.web3_service import web3_manager
 from app.services.event_service import event_service
 from app.services.pool_discovery import pool_discovery_service
+from app.services.subgraph_service import subgraph_service
 from app.utils import (
     format_amount, calculate_price_from_sqrt_price, normalize_address
 )
@@ -21,17 +21,34 @@ class SerializerService:
     def __init__(self):
         self.dex_key = "algebra"
     
-    def serialize_block(self, network: str, block_number: int) -> Block:
+    async def serialize_block(self, network: str, block_number: int) -> Block:
         """Convert block data to DEX Screener format"""
         
-        block_data = web3_manager.get_block(network, block_number)
-        if not block_data:
-            raise ValueError(f"Could not fetch block {block_number}")
+        try:
+            # Get latest block info from subgraph
+            latest_block = await subgraph_service.get_latest_block(network)
+            
+            # If specific block requested and it's different from latest, try to get timestamp
+            if latest_block and latest_block["number"] >= block_number:
+                # Use subgraph's latest block timestamp as approximation
+                # For exact timestamp, would need additional subgraph query or RPC call
+                return Block(
+                    blockNumber=block_number,
+                    blockTimestamp=latest_block["timestamp"]
+                )
+            else:
+                # Return current block
+                return Block(
+                    blockNumber=latest_block["number"] if latest_block else block_number,
+                    blockTimestamp=latest_block["timestamp"] if latest_block else 0
+                )
         
-        return Block(
-            blockNumber=block_data["number"],
-            blockTimestamp=block_data["timestamp"]
-        )
+        except Exception as e:
+            logger.error(f"Error fetching block data from subgraph: {e}")
+            return Block(
+                blockNumber=block_number,
+                blockTimestamp=0
+            )
     
     async def serialize_asset(self, network: str, token_address: str) -> Asset:
         """Convert token data to DEX Screener format"""
@@ -84,7 +101,6 @@ class SerializerService:
             feeBps=fee_bps,
             metadata={
                 "network": network,
-                "version": pool_info.version,
                 "tickSpacing": str(pool_info.tick_spacing),
                 "token0Symbol": token0.symbol,
                 "token1Symbol": token1.symbol,
@@ -108,9 +124,8 @@ class SerializerService:
         if not token0 or not token1:
             raise ValueError(f"Could not fetch token info for swap")
         
-        # Get block timestamp
-        block_data = web3_manager.get_block(swap.network, swap.block_number)
-        block_timestamp = block_data["timestamp"] if block_data else 0
+        # Get block timestamp from swap data (subgraph includes timestamp)
+        block_timestamp = swap.timestamp
         
         # Format amounts
         amount0_formatted = format_amount(abs(swap.amount0), token0.decimals)
@@ -139,7 +154,7 @@ class SerializerService:
             txnId=swap.tx_hash,
             txnIndex=swap.tx_index,
             eventIndex=swap.log_index,
-            maker=swap.sender,  # Or recipient, depending on interpretation
+            maker=swap.tx_origin,  # Use transaction origin instead of sender
             pairId=swap.pool_address,
             asset0In=asset0_in,
             asset1In=asset1_in,
@@ -148,10 +163,7 @@ class SerializerService:
             priceNative=price_native,
             reserves=reserves,
             metadata={
-                "network": swap.network,
-                "recipient": swap.recipient,
-                "tick": str(swap.tick),
-                "liquidity": str(swap.liquidity)
+                "network": swap.network
             }
         )
     
@@ -168,8 +180,8 @@ class SerializerService:
         if not token0 or not token1:
             raise ValueError(f"Could not fetch token info for mint")
         
-        block_data = web3_manager.get_block(mint.network, mint.block_number)
-        block_timestamp = block_data["timestamp"] if block_data else 0
+        # Get block timestamp from mint data (subgraph includes timestamp)
+        block_timestamp = mint.timestamp
         
         amount0_formatted = format_amount(mint.amount0, token0.decimals)
         amount1_formatted = format_amount(mint.amount1, token1.decimals)
@@ -183,16 +195,12 @@ class SerializerService:
             txnId=mint.tx_hash,
             txnIndex=mint.tx_index,
             eventIndex=mint.log_index,
-            maker=mint.sender,
+            maker=mint.tx_origin,
             pairId=mint.pool_address,
             amount0=amount0_formatted,
             amount1=amount1_formatted,
             metadata={
-                "network": mint.network,
-                "owner": mint.owner,
-                "tickLower": str(mint.tick_lower),
-                "tickUpper": str(mint.tick_upper),
-                "liquidityAmount": str(mint.amount)
+                "network": mint.network
             }
         )
     
@@ -209,8 +217,8 @@ class SerializerService:
         if not token0 or not token1:
             raise ValueError(f"Could not fetch token info for burn")
         
-        block_data = web3_manager.get_block(burn.network, burn.block_number)
-        block_timestamp = block_data["timestamp"] if block_data else 0
+        # Get block timestamp from burn data (subgraph includes timestamp)
+        block_timestamp = burn.timestamp
         
         amount0_formatted = format_amount(burn.amount0, token0.decimals)
         amount1_formatted = format_amount(burn.amount1, token1.decimals)
@@ -224,15 +232,12 @@ class SerializerService:
             txnId=burn.tx_hash,
             txnIndex=burn.tx_index,
             eventIndex=burn.log_index,
-            maker=burn.owner,  # Owner of the position
+            maker=burn.tx_origin,  # Use transaction origin
             pairId=burn.pool_address,
             amount0=amount0_formatted,
             amount1=amount1_formatted,
             metadata={
-                "network": burn.network,
-                "tickLower": str(burn.tick_lower),
-                "tickUpper": str(burn.tick_upper),
-                "liquidityAmount": str(burn.amount)
+                "network": burn.network
             }
         )
 

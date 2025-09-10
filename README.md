@@ -1,32 +1,42 @@
-# Algebra Integral DEX Screener Adapter
+# DEX Screener Adapter
 
-HTTP adapter for integrating Algebra Integral with DEX Screener. Supports multiple chains and protocol versions.
+Universal HTTP adapter for integrating Algebra DEX protocols with DEX Screener. Supports multiple chains and provides a unified API interface.
 
-## Features
+## Quick Deployment with Docker
 
-- ✅ **RPC Only**: Uses exclusively RPC nodes (Infura), no dependency on The Graph
-- ✅ **Multi-chain**: Support for Ethereum, Polygon, Arbitrum, Base
-- ✅ **Concentrated Liquidity**: Full support for Algebra Integral concentrated liquidity
-- ✅ **Multiple Versions**: Support for different Algebra protocol versions
-- ✅ **Auto Pool Discovery**: Automatic pool discovery via Factory events
-- ✅ **DEX Screener API**: Full compliance with DEX Screener specification
+### Prerequisites
+- Docker & Docker Compose installed
+- 2GB RAM minimum
+- Open ports: 80, 443
 
-## Architecture
+### Deploy in 3 Steps
 
-```
-app/
-├── api/              # FastAPI endpoints
-├── config/           # Application configuration  
-├── models/           # Pydantic models
-├── services/         # Business logic
-│   ├── web3_service.py        # Web3 connections
-│   ├── pool_discovery.py      # Pool discovery via Factory
-│   ├── event_service.py       # Event fetching and parsing
-│   └── serializer_service.py  # DEX Screener format conversion
-└── utils/            # ABI and helper functions
+1. **Clone & Configure:**
+```bash
+git clone <repository>
+cd dexscreener-adapter
+cp .env.example .env
+# Edit .env file with your configuration
 ```
 
-## Installation
+2. **Start Services:**
+```bash
+docker-compose up -d
+```
+
+3. **Test API:**
+```bash
+# Test health
+curl http://localhost/health
+
+# Test endpoints
+curl http://localhost/dex/polygon/latest-block
+curl http://localhost/dex/ethereum/latest-block
+```
+
+## Manual Installation
+
+### Development Setup
 
 1. **Clone and setup environment:**
 ```bash
@@ -46,16 +56,31 @@ pip install -r requirements.txt
 3. **Configuration:**
 ```bash
 cp .env.example .env
-# Edit the .env file:
-nano .env
+# Edit the .env file with your settings
 ```
 
-Required settings in `.env`:
+## Configuration
+
+The adapter uses a flexible configuration system based on environment variables.
+
+### Required Settings in `.env`:
 ```env
-INFURA_API_KEY=your_actual_infura_api_key_here
-ETHEREUM_FACTORY_V1=0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B
-POLYGON_FACTORY_V1=0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28
-# Add other factory addresses as needed
+# Networks (comma-separated list)
+NETWORKS=ethereum,polygon,arbitrum,base
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+### Network Configuration
+Each network requires a subgraph URL configured with the pattern `{NETWORK}_SUBGRAPH_URL`:
+
+```env
+# Default networks (automatically configured if not specified)
+ETHEREUM_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/cryptoalgebra/algebra-integral-mainnet
+POLYGON_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/cryptoalgebra/algebra-integral-polygon
+
+NETWORKS=ethereum,polygon,custom_network
 ```
 
 ## Usage
@@ -74,120 +99,80 @@ Server will be available at: http://localhost:8000
 
 ## API Endpoints
 
-According to [DEX Screener Adapter Specification](https://dexscreener.notion.site/DEX-Screener-Adapter-Specs-cc1223cdf6e74a7799599106b65dcd0e):
+All endpoints follow the pattern: `/dex/{network}/{endpoint}`
 
-### 1. Latest Block
 ```
-GET /latest-block
-```
-Returns the latest available block.
 
-### 2. Asset Information  
-```
-GET /asset?id={token_address}
-```
-Token information by its address.
-
-### 3. Pair Information
-```
-GET /pair?id={pool_address}  
-```
-Trading pair/pool information.
-
-### 4. Events
-```
-GET /events?fromBlock={n}&toBlock={n}&network={optional}
-```
-Swap, liquidity add/remove events in the specified block range.
-
-### 5. Health Check
-```
-GET /health
-```
-Network connection status.
-
-## Usage Examples
-
-### Get latest block:
+### Development Server Examples
 ```bash
-curl http://localhost:8000/latest-block
+# Get latest block:
+curl http://localhost:8000/dex/ethereum/latest-block
+
+# Get token information (WETH):
+curl "http://localhost:8000/dex/ethereum/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+
+# Get events for the last 100 blocks:
+curl "http://localhost:8000/dex/ethereum/events?fromBlock=18700000&toBlock=18700100"
 ```
 
-### Get token information (WETH):
+## Monitoring & Troubleshooting
+
+### Check Status (Docker)
 ```bash
-curl "http://localhost:8000/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+# Service status
+docker-compose ps
+
+# Logs
+docker-compose logs -f dex-adapter
+docker-compose logs -f nginx
 ```
 
-### Get events for the last 100 blocks:
+### Restart Services
 ```bash
-curl "http://localhost:8000/events?fromBlock=18700000&toBlock=18700100"
+# Restart all
+docker-compose restart
+
+# Restart specific service
+docker-compose restart dex-adapter
+
+# Full rebuild
+docker-compose down
+docker-compose up -d --build
 ```
-
-## Supported Networks
-
-- **Ethereum** (Chain ID: 1)
-- **Polygon** (Chain ID: 137) 
-- **Arbitrum** (Chain ID: 42161)
-- **Base** (Chain ID: 8453)
-
-## How Pool Discovery Works
-
-1. **Factory Events**: Scans `PoolCreated` events from known Factory contracts
-2. **Incremental Discovery**: Periodically scans new blocks to discover new pools
-3. **Caching**: Caches discovered pools for improved performance
-
-## Algebra Integral Events
-
-Supported event types:
-- **Swap**: Token exchanges in pools  
-- **Mint**: Liquidity addition (join events)
-- **Burn**: Liquidity removal (exit events)
 
 ## Development
 
-### Run tests:
+### Development Server
+```bash
+# Using Python directly
+python main.py
+
+# Using uvicorn
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Run Tests
 ```bash
 pytest tests/
 ```
-
-### Project structure:
-- `main.py` - FastAPI application entry point
-- `app/` - Main application code
-- `tests/` - Unit tests
-- `requirements.txt` - Python dependencies
-- `.env.example` - Configuration example
-
-## Troubleshooting
-
-### RPC connection errors:
-- Check that INFURA_API_KEY is correct
-- Ensure you have access to the required networks in Infura
-
-### Pools not being discovered:
-- Ensure Factory addresses are configured correctly for each network
-- Check that you're using the correct protocol versions
-
-### Slow performance:
-- Reduce block range in `/events` requests
-- Configure Redis for caching (optional)
-
 ## Production Configuration
 
-For production environments, it's recommended to:
+### SSL/HTTPS Setup
+1. Get SSL certificates (Let's Encrypt recommended)
+2. Update `nginx.conf` with SSL configuration
+3. Place certificates in `./ssl/` directory
 
-1. **Use dedicated RPC nodes** instead of Infura for better performance
-2. **Configure Redis** for caching
-3. **Set up monitoring** and alerting
-4. **Use reverse proxy** (nginx) 
-5. **Configure logging** and rotation
+### Production Environment Variables
+```env
+# Production settings
+LOG_LEVEL=WARNING
+WORKERS=4
 
-## Contributing
+# Security
+ALLOWED_HOSTS=yourdomain.com,api.yourdomain.com
+CORS_ORIGINS=https://yourdomain.com
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with tests
-4. Create a Pull Request
-
-## License
-
-MIT License
+# Performance
+CACHE_TTL=300
+MAX_CONNECTIONS=100
+```

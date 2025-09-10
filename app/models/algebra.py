@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -14,11 +14,11 @@ class AlgebraPool(BaseModel):
     created_at_tx: Optional[str] = None
     creator: Optional[str] = None
     network: str
-    version: str
+    version: Optional[str] = None  # Optional - protocol version if needed
 
 
-class AlgebraToken(BaseModel):
-    """Internal model for token data"""
+class Token(BaseModel):
+    """Internal model for ERC-20 token data"""
     address: str
     name: str
     symbol: str
@@ -37,6 +37,7 @@ class AlgebraSwap(BaseModel):
     pool_address: str
     sender: str
     recipient: str
+    tx_origin: str  # Transaction origin (from field)
     amount0: int
     amount1: int
     sqrt_price_x96: int
@@ -55,6 +56,7 @@ class AlgebraMint(BaseModel):
     pool_address: str
     owner: str
     sender: str
+    tx_origin: str  # Transaction origin (from field)
     amount0: int
     amount1: int
     tick_lower: int
@@ -72,27 +74,10 @@ class AlgebraBurn(BaseModel):
     block_timestamp: int
     pool_address: str
     owner: str
+    tx_origin: str  # Transaction origin (from field)
     amount0: int
     amount1: int
     tick_lower: int
     tick_upper: int
     amount: int  # liquidity amount
     network: str
-
-
-class NetworkInfo(BaseModel):
-    """Network configuration"""
-    name: str
-    chain_id: int
-    rpc_url: str
-    factory_addresses: Dict[str, str]  # version -> address
-    
-    
-class ProtocolVersion(BaseModel):
-    """Protocol version info"""
-    version: str
-    factory_address: str
-    pool_created_event_signature: str
-    swap_event_signature: str
-    mint_event_signature: str
-    burn_event_signature: str

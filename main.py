@@ -38,27 +38,29 @@ async def root():
     return {
         "name": "Algebra Integral DEX Screener Adapter",
         "version": "1.0.0",
-        "networks": settings.networks,
+        "networks": settings.active_networks,
         "status": "healthy"
     }
 
 @app.get("/health")
 async def health():
     """Detailed health check"""
-    from app.services import web3_manager
+    from app.services import subgraph_service
     
     network_status = {}
-    for network in settings.networks:
+    for network in settings.active_networks:
         try:
-            latest_block = web3_manager.get_latest_block_number(network)
+            latest_block = await subgraph_service.get_latest_block(network)
             network_status[network] = {
                 "connected": latest_block is not None,
-                "latest_block": latest_block
+                "latest_block": latest_block.get("blockNumber") if latest_block else None,
+                "subgraph_available": True
             }
         except Exception as e:
             network_status[network] = {
                 "connected": False,
-                "error": str(e)
+                "error": str(e),
+                "subgraph_available": False
             }
     
     return {

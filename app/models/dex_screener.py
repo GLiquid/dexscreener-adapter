@@ -37,7 +37,6 @@ class Pair(BaseModel):
     createdAtTxnId: Optional[str] = None
     creator: Optional[str] = None
     feeBps: Optional[int] = None
-    pool: Optional[Pool] = None
     metadata: Optional[Dict[str, str]] = None
 
 

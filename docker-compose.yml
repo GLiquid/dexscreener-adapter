@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # DEX Screener API (handles all networks)
+  dex-adapter:
+    build: .
+    container_name: dex_adapter
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./.env:/app/.env:ro
+    # Expose port for nginx
+    expose:
+      - "8000"
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: dex_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - dex-adapter
