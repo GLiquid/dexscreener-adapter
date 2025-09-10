@@ -2,11 +2,10 @@ import logging
 from typing import List, Optional, Dict, Union
 from app.models import (
     Block, Asset, Pair, SwapEventWithBlock, JoinExitEventWithBlock,
-    AlgebraSwap, AlgebraMint, AlgebraBurn, Token, AlgebraPool,
+    AlgebraSwap, AlgebraMint, AlgebraBurn, Token, AlgebraPoolWithTokens,
     Reserves
 )
 from app.services.event_service import event_service
-from app.services.pool_discovery import pool_discovery_service
 from app.services.subgraph_service import subgraph_service
 from app.utils import (
     format_amount, calculate_price_from_sqrt_price, normalize_address
@@ -75,16 +74,13 @@ class SerializerService:
     async def serialize_pair(self, network: str, pool_address: str) -> Pair:
         """Convert pool data to DEX Screener format"""
         
-        pool_info = pool_discovery_service.get_pool_info(pool_address)
+        pool_info = await subgraph_service.get_pool_with_tokens(network, pool_address)
         if not pool_info:
             raise ValueError(f"Could not find pool info for {pool_address}")
         
-        # Get token information
-        token0 = await event_service.get_token_info(network, pool_info.token0)
-        token1 = await event_service.get_token_info(network, pool_info.token1)
-        
-        if not token0 or not token1:
-            raise ValueError(f"Could not fetch token info for pool {pool_address}")
+        # Now we have all token information from one query
+        token0 = pool_info.token0
+        token1 = pool_info.token1
         
         # Calculate fee in bps (Algebra typically uses different fee structures)
         fee_bps = pool_info.fee // 100 if pool_info.fee else None
@@ -92,8 +88,8 @@ class SerializerService:
         return Pair(
             id=pool_info.address,
             dexKey=f"{self.dex_key}-{network}",
-            asset0Id=pool_info.token0,
-            asset1Id=pool_info.token1,
+            asset0Id=token0.address,
+            asset1Id=token1.address,
             createdAtBlockNumber=pool_info.created_at_block,
             createdAtBlockTimestamp=pool_info.created_at_timestamp,
             createdAtTxnId=pool_info.created_at_tx,
@@ -112,17 +108,9 @@ class SerializerService:
     async def serialize_swap_event(self, swap: AlgebraSwap) -> SwapEventWithBlock:
         """Convert Algebra swap to DEX Screener swap event"""
         
-        # Get pool info for token decimals
-        pool_info = pool_discovery_service.get_pool_info(swap.pool_address)
-        if not pool_info:
-            raise ValueError(f"Could not find pool info for {swap.pool_address}")
-        
-        # Get token info for decimals
-        token0 = await event_service.get_token_info(swap.network, pool_info.token0)
-        token1 = await event_service.get_token_info(swap.network, pool_info.token1)
-        
-        if not token0 or not token1:
-            raise ValueError(f"Could not fetch token info for swap")
+        # Now we have all token info directly from the swap event
+        token0 = swap.token0
+        token1 = swap.token1
         
         # Get block timestamp from swap data (subgraph includes timestamp)
         block_timestamp = swap.timestamp
@@ -177,15 +165,9 @@ class SerializerService:
     async def serialize_mint_event(self, mint: AlgebraMint) -> JoinExitEventWithBlock:
         """Convert Algebra mint to DEX Screener join event"""
         
-        pool_info = pool_discovery_service.get_pool_info(mint.pool_address)
-        if not pool_info:
-            raise ValueError(f"Could not find pool info for {mint.pool_address}")
-        
-        token0 = await event_service.get_token_info(mint.network, pool_info.token0)
-        token1 = await event_service.get_token_info(mint.network, pool_info.token1)
-        
-        if not token0 or not token1:
-            raise ValueError(f"Could not fetch token info for mint")
+        # Now we have all token info directly from the mint event
+        token0 = mint.token0
+        token1 = mint.token1
         
         # Get block timestamp from mint data (subgraph includes timestamp)
         block_timestamp = mint.timestamp
@@ -225,15 +207,9 @@ class SerializerService:
     async def serialize_burn_event(self, burn: AlgebraBurn) -> JoinExitEventWithBlock:
         """Convert Algebra burn to DEX Screener exit event"""
         
-        pool_info = pool_discovery_service.get_pool_info(burn.pool_address)
-        if not pool_info:
-            raise ValueError(f"Could not find pool info for {burn.pool_address}")
-        
-        token0 = await event_service.get_token_info(burn.network, pool_info.token0)
-        token1 = await event_service.get_token_info(burn.network, pool_info.token1)
-        
-        if not token0 or not token1:
-            raise ValueError(f"Could not fetch token info for burn")
+        # Now we have all token info directly from the burn event
+        token0 = burn.token0
+        token1 = burn.token1
         
         # Get block timestamp from burn data (subgraph includes timestamp)
         block_timestamp = burn.timestamp

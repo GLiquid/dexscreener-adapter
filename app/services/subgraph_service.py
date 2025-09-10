@@ -3,7 +3,7 @@ import aiohttp
 import asyncio
 from typing import Dict, List, Optional, Any
 from app.config import settings
-from app.models import AlgebraPool, Token, AlgebraSwap, AlgebraMint, AlgebraBurn
+from app.models import Token, AlgebraSwap, AlgebraMint, AlgebraBurn, AlgebraPoolWithTokens
 from app.utils import normalize_address
 from app.services.schema_detector import schema_detector, SubgraphSchemaVersion
 
@@ -60,6 +60,19 @@ class SubgraphService:
                 id
                 pool {
                     id
+                    token0 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    token1 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    fee
                 }
                 sender
                 recipient
@@ -82,6 +95,19 @@ class SubgraphService:
                 id
                 pool {
                     id
+                    token0 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    token1 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    fee
                 }
                 owner
                 sender
@@ -104,6 +130,19 @@ class SubgraphService:
                 id
                 pool {
                     id
+                    token0 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    token1 {
+                        id
+                        symbol
+                        name
+                        decimals
+                    }
+                    fee
                 }
                 owner
                 amount0
@@ -169,23 +208,27 @@ class SubgraphService:
             }
         return None
     
-    async def get_pools(self, network: str, first: int = 1000, skip: int = 0) -> List[AlgebraPool]:
-        """Get pools from subgraph"""
+
+    
+    async def get_pool_with_tokens(self, network: str, pool_address: str) -> Optional[AlgebraPoolWithTokens]:
+        """Get pool information with full token details in one query"""
         query = """
-        query GetPools($first: Int!, $skip: Int!) {
-            pools(first: $first, skip: $skip, orderBy: createdAtTimestamp, orderDirection: desc) {
+        query GetPoolWithTokens($poolId: ID!) {
+            pool(id: $poolId) {
                 id
                 token0 {
                     id
                     symbol
                     name
                     decimals
+                    totalSupply
                 }
                 token1 {
                     id
                     symbol
                     name
                     decimals
+                    totalSupply
                 }
                 fee
                 tickSpacing
@@ -198,65 +241,49 @@ class SubgraphService:
         }
         """
         
-        variables = {"first": first, "skip": skip}
+        variables = {"poolId": pool_address.lower()}
         result = await self.query_subgraph(network, query, variables)
         
-        pools = []
-        if result and "pools" in result:
-            for pool_data in result["pools"]:
-                try:
-                    pool = AlgebraPool(
-                        address=normalize_address(pool_data["id"]),
-                        token0=normalize_address(pool_data["token0"]["id"]),
-                        token1=normalize_address(pool_data["token1"]["id"]),
-                        fee=int(pool_data.get("fee", 0)),
-                        tick_spacing=int(pool_data.get("tickSpacing", 60)),
-                        created_at_block=int(pool_data.get("createdAtBlockNumber", 0)) if pool_data.get("createdAtBlockNumber") else None,
-                        created_at_timestamp=int(pool_data.get("createdAtTimestamp", 0)) if pool_data.get("createdAtTimestamp") else None,
-                        network=network
-                        # version omitted - not critical for current implementation
-                    )
-                    pools.append(pool)
-                except Exception as e:
-                    logger.error(f"Error parsing pool data: {e}")
-                    continue
-        
-        return pools
-    
-    async def get_token(self, network: str, token_address: str) -> Optional[Token]:
-        """Get token information from subgraph"""
-        query = """
-        query GetToken($tokenId: ID!) {
-            token(id: $tokenId) {
-                id
-                symbol
-                name
-                decimals
-                totalSupply
-                totalValueLocked
-                totalValueLockedUSD
-            }
-        }
-        """
-        
-        variables = {"tokenId": token_address.lower()}
-        result = await self.query_subgraph(network, query, variables)
-        
-        if result and "token" in result and result["token"]:
-            token_data = result["token"]
+        if result and "pool" in result and result["pool"]:
+            pool_data = result["pool"]
             try:
-                return Token(
-                    address=normalize_address(token_data["id"]),
-                    name=token_data.get("name", ""),
-                    symbol=token_data.get("symbol", ""),
-                    decimals=int(token_data.get("decimals", 18)),
-                    total_supply=int(float(token_data.get("totalSupply", 0))) if token_data.get("totalSupply") else None,
+                from app.models import AlgebraPoolWithTokens, Token
+                
+                # Create token objects
+                token0 = Token(
+                    address=normalize_address(pool_data["token0"]["id"]),
+                    name=pool_data["token0"].get("name", ""),
+                    symbol=pool_data["token0"].get("symbol", ""),
+                    decimals=int(pool_data["token0"].get("decimals", 18)),
+                    total_supply=int(float(pool_data["token0"].get("totalSupply", 0))) if pool_data["token0"].get("totalSupply") else None,
+                    network=network
+                )
+                
+                token1 = Token(
+                    address=normalize_address(pool_data["token1"]["id"]),
+                    name=pool_data["token1"].get("name", ""),
+                    symbol=pool_data["token1"].get("symbol", ""),
+                    decimals=int(pool_data["token1"].get("decimals", 18)),
+                    total_supply=int(float(pool_data["token1"].get("totalSupply", 0))) if pool_data["token1"].get("totalSupply") else None,
+                    network=network
+                )
+                
+                return AlgebraPoolWithTokens(
+                    address=normalize_address(pool_data["id"]),
+                    token0=token0,
+                    token1=token1,
+                    fee=int(pool_data.get("fee", 0)),
+                    tick_spacing=int(pool_data.get("tickSpacing", 60)),
+                    created_at_block=int(pool_data.get("createdAtBlockNumber", 0)) if pool_data.get("createdAtBlockNumber") else None,
+                    created_at_timestamp=int(pool_data.get("createdAtTimestamp", 0)) if pool_data.get("createdAtTimestamp") else None,
                     network=network
                 )
             except Exception as e:
-                logger.error(f"Error parsing token data: {e}")
+                logger.error(f"Error parsing pool with tokens data: {e}")
         
         return None
+    
+
     
     async def get_all_events(self, network: str, from_block: int, to_block: int, first: int = 1000) -> Dict[str, List]:
         """Get all events (swaps, mints, burns) from subgraph using cursor-based pagination"""
@@ -321,13 +348,30 @@ class SubgraphService:
                 # Process swaps
                 for swap_data in tx_data.get("swaps", []):
                     try:
+                        # Extract token information from pool data
+                        pool_data = swap_data["pool"]
+                        token0 = Token(
+                            address=normalize_address(pool_data["token0"]["id"]),
+                            name=pool_data["token0"].get("name", ""),
+                            symbol=pool_data["token0"].get("symbol", ""),
+                            decimals=int(pool_data["token0"].get("decimals", 18)),
+                            network=network
+                        )
+                        token1 = Token(
+                            address=normalize_address(pool_data["token1"]["id"]),
+                            name=pool_data["token1"].get("name", ""),
+                            symbol=pool_data["token1"].get("symbol", ""),
+                            decimals=int(pool_data["token1"].get("decimals", 18)),
+                            network=network
+                        )
+                        
                         swap = AlgebraSwap(
                             tx_hash=tx_id,
                             tx_index=0,
                             log_index=int(swap_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
-                            pool_address=normalize_address(swap_data["pool"]["id"]),
+                            pool_address=normalize_address(pool_data["id"]),
                             sender=normalize_address(swap_data["sender"]),
                             recipient=normalize_address(swap_data["recipient"]),
                             tx_origin=normalize_address(tx_from),
@@ -337,6 +381,9 @@ class SubgraphService:
                             liquidity=int(swap_data["liquidity"]),
                             tick=int(swap_data["tick"]),
                             network=network,
+                            token0=token0,
+                            token1=token1,
+                            pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
                             reserves0=float(swap_data["reserves0"]) if include_reserves and swap_data.get("reserves0") else None,
                             reserves1=float(swap_data["reserves1"]) if include_reserves and swap_data.get("reserves1") else None
@@ -349,13 +396,30 @@ class SubgraphService:
                 # Process mints
                 for mint_data in tx_data.get("mints", []):
                     try:
+                        # Extract token information from pool data
+                        pool_data = mint_data["pool"]
+                        token0 = Token(
+                            address=normalize_address(pool_data["token0"]["id"]),
+                            name=pool_data["token0"].get("name", ""),
+                            symbol=pool_data["token0"].get("symbol", ""),
+                            decimals=int(pool_data["token0"].get("decimals", 18)),
+                            network=network
+                        )
+                        token1 = Token(
+                            address=normalize_address(pool_data["token1"]["id"]),
+                            name=pool_data["token1"].get("name", ""),
+                            symbol=pool_data["token1"].get("symbol", ""),
+                            decimals=int(pool_data["token1"].get("decimals", 18)),
+                            network=network
+                        )
+                        
                         mint = AlgebraMint(
                             tx_hash=tx_id,
                             tx_index=0,
                             log_index=int(mint_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
-                            pool_address=normalize_address(mint_data["pool"]["id"]),
+                            pool_address=normalize_address(pool_data["id"]),
                             owner=normalize_address(mint_data["owner"]),
                             sender=normalize_address(mint_data["sender"]),
                             tx_origin=normalize_address(tx_from),
@@ -365,6 +429,9 @@ class SubgraphService:
                             tick_upper=int(mint_data["tickUpper"]),
                             amount=int(float(mint_data["amount"])),
                             network=network,
+                            token0=token0,
+                            token1=token1,
+                            pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
                             reserves0=float(mint_data["reserves0"]) if include_reserves and mint_data.get("reserves0") else None,
                             reserves1=float(mint_data["reserves1"]) if include_reserves and mint_data.get("reserves1") else None
@@ -377,13 +444,30 @@ class SubgraphService:
                 # Process burns
                 for burn_data in tx_data.get("burns", []):
                     try:
+                        # Extract token information from pool data
+                        pool_data = burn_data["pool"]
+                        token0 = Token(
+                            address=normalize_address(pool_data["token0"]["id"]),
+                            name=pool_data["token0"].get("name", ""),
+                            symbol=pool_data["token0"].get("symbol", ""),
+                            decimals=int(pool_data["token0"].get("decimals", 18)),
+                            network=network
+                        )
+                        token1 = Token(
+                            address=normalize_address(pool_data["token1"]["id"]),
+                            name=pool_data["token1"].get("name", ""),
+                            symbol=pool_data["token1"].get("symbol", ""),
+                            decimals=int(pool_data["token1"].get("decimals", 18)),
+                            network=network
+                        )
+                        
                         burn = AlgebraBurn(
                             tx_hash=tx_id,
                             tx_index=0,
                             log_index=int(burn_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
-                            pool_address=normalize_address(burn_data["pool"]["id"]),
+                            pool_address=normalize_address(pool_data["id"]),
                             owner=normalize_address(burn_data["owner"]),
                             tx_origin=normalize_address(tx_from),
                             amount0=int(float(burn_data["amount0"])),
@@ -392,6 +476,9 @@ class SubgraphService:
                             tick_upper=int(burn_data["tickUpper"]),
                             amount=int(float(burn_data["amount"])),
                             network=network,
+                            token0=token0,
+                            token1=token1,
+                            pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
                             reserves0=float(burn_data["reserves0"]) if include_reserves and burn_data.get("reserves0") else None,
                             reserves1=float(burn_data["reserves1"]) if include_reserves and burn_data.get("reserves1") else None
@@ -410,217 +497,41 @@ class SubgraphService:
             "mints": all_mints,
             "burns": all_burns
         }
-        """Get swap events from subgraph using cursor-based pagination via transactions"""
-        # Detect schema version
-        schema_version = await self._ensure_schema_detected(network)
-        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
-        
-        swap_fields = self._get_swap_query_fields(include_reserves)
-        query = f"""
-        query GetSwaps($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
-            transactions(
-                where: {{
-                    blockNumber_gte: $fromBlock,
-                    blockNumber_lte: $toBlock,
-                    id_gt: $lastId
-                }},
-                first: $first,
-                orderBy: id,
-                orderDirection: asc
-            ) {{
+    
+    async def get_token(self, network: str, token_address: str) -> Optional[Token]:
+        """Get token information from subgraph (simplified version for compatibility)"""
+        query = """
+        query GetToken($tokenId: ID!) {
+            token(id: $tokenId) {
                 id
-                blockNumber
-                timestamp
-                from
-                swaps {{{swap_fields}
-                }}
-            }}
-        }}
+                symbol
+                name
+                decimals
+                totalSupply
+            }
+        }
         """
         
-        swaps = []
-        last_id = ""
-        while True:
-            variables = {
-                "fromBlock": from_block,
-                "toBlock": to_block,
-                "first": first,
-                "lastId": last_id
-            }
-            result = await self.query_subgraph(network, query, variables)
-            batch = result["transactions"] if result and "transactions" in result else []
-            if not batch:
-                break
-            
-            for tx_data in batch:
-                tx_swaps = tx_data.get("swaps", [])
-                for swap_data in tx_swaps:
-                    try:
-                        swap = AlgebraSwap(
-                            tx_hash=tx_data["id"],
-                            tx_index=0,
-                            log_index=int(swap_data.get("logIndex", 0)),
-                            block_number=int(tx_data["blockNumber"]),
-                            block_timestamp=int(tx_data["timestamp"]),
-                            pool_address=normalize_address(swap_data["pool"]["id"]),
-                            sender=normalize_address(swap_data["sender"]),
-                            recipient=normalize_address(swap_data["recipient"]),
-                            tx_origin=normalize_address(tx_data["from"]),
-                            amount0=int(float(swap_data["amount0"])),
-                            amount1=int(float(swap_data["amount1"])),
-                            sqrt_price_x96=int(swap_data["sqrtPriceX96"]),
-                            liquidity=int(swap_data["liquidity"]),
-                            tick=int(swap_data["tick"]),
-                            network=network,
-                            # Include reserves if available (already in decimal format)
-                            reserves0=float(swap_data["reserves0"]) if include_reserves and swap_data.get("reserves0") else None,
-                            reserves1=float(swap_data["reserves1"]) if include_reserves and swap_data.get("reserves1") else None
-                        )
-                        swaps.append(swap)
-                    except Exception as e:
-                        logger.error(f"Error parsing swap data: {e}")
-                        continue
-            
-            if batch:
-                last_id = batch[-1]["id"]
-            if len(batch) < first:
-                break
-        return swaps
+        variables = {"tokenId": token_address.lower()}
+        result = await self.query_subgraph(network, query, variables)
+        
+        if result and "token" in result and result["token"]:
+            token_data = result["token"]
+            try:
+                return Token(
+                    address=normalize_address(token_data["id"]),
+                    name=token_data.get("name", ""),
+                    symbol=token_data.get("symbol", ""),
+                    decimals=int(token_data.get("decimals", 18)),
+                    total_supply=int(float(token_data.get("totalSupply", 0))) if token_data.get("totalSupply") else None,
+                    network=network
+                )
+            except Exception as e:
+                logger.error(f"Error parsing token data: {e}")
+        
+        return None
     
-    async def get_mints(self, network: str, from_block: int, to_block: int, first: int = 1000) -> List[AlgebraMint]:
-        """Get mint events from subgraph using cursor-based pagination"""
-        # Detect schema version
-        schema_version = await self._ensure_schema_detected(network)
-        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
-        
-        query_fields = self._get_mint_query_fields(include_reserves)
-        query = f"""
-        query GetMints($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
-            mints(
-                where: {{
-                    blockNumber_gte: $fromBlock,
-                    blockNumber_lte: $toBlock,
-                    id_gt: $lastId
-                }},
-                first: $first,
-                orderBy: id,
-                orderDirection: asc
-            ) {{{query_fields}
-            }}
-        }}
-        """
-        
-        mints = []
-        last_id = ""
-        while True:
-            variables = {
-                "fromBlock": from_block,
-                "toBlock": to_block,
-                "first": first,
-                "lastId": last_id
-            }
-            result = await self.query_subgraph(network, query, variables)
-            batch = result["mints"] if result and "mints" in result else []
-            if not batch:
-                break
-            for mint_data in batch:
-                try:
-                    tx_data = mint_data["transaction"]
-                    mint = AlgebraMint(
-                        tx_hash=tx_data["id"],
-                        tx_index=0,
-                        log_index=int(mint_data.get("logIndex", 0)),
-                        block_number=int(tx_data["blockNumber"]),
-                        block_timestamp=int(tx_data["timestamp"]),
-                        pool_address=normalize_address(mint_data["pool"]["id"]),
-                        owner=normalize_address(mint_data["owner"]),
-                        sender=normalize_address(mint_data["sender"]),
-                        tx_origin=normalize_address(tx_data["from"]),
-                        amount0=int(float(mint_data["amount0"])),
-                        amount1=int(float(mint_data["amount1"])),
-                        tick_lower=int(mint_data["tickLower"]),
-                        tick_upper=int(mint_data["tickUpper"]),
-                        amount=int(float(mint_data["amount"])),
-                        network=network,
-                        # Include reserves if available (already in decimal format)
-                        reserves0=float(mint_data["reserves0"]) if include_reserves and mint_data.get("reserves0") else None,
-                        reserves1=float(mint_data["reserves1"]) if include_reserves and mint_data.get("reserves1") else None
-                    )
-                    mints.append(mint)
-                except Exception as e:
-                    logger.error(f"Error parsing mint data: {e}")
-                    continue
-            last_id = batch[-1]["id"]
-            if len(batch) < first:
-                break
-        return mints
-    
-    async def get_burns(self, network: str, from_block: int, to_block: int, first: int = 1000) -> List[AlgebraBurn]:
-        """Get burn events from subgraph using cursor-based pagination"""
-        # Detect schema version
-        schema_version = await self._ensure_schema_detected(network)
-        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
-        
-        query_fields = self._get_burn_query_fields(include_reserves)
-        query = f"""
-        query GetBurns($fromBlock: Int!, $toBlock: Int!, $first: Int!, $lastId: ID) {{
-            burns(
-                where: {{
-                    blockNumber_gte: $fromBlock,
-                    blockNumber_lte: $toBlock,
-                    id_gt: $lastId
-                }},
-                first: $first,
-                orderBy: id,
-                orderDirection: asc
-            ) {{{query_fields}
-            }}
-        }}
-        """
-        
-        burns = []
-        last_id = ""
-        while True:
-            variables = {
-                "fromBlock": from_block,
-                "toBlock": to_block,
-                "first": first,
-                "lastId": last_id
-            }
-            result = await self.query_subgraph(network, query, variables)
-            batch = result["burns"] if result and "burns" in result else []
-            if not batch:
-                break
-            for burn_data in batch:
-                try:
-                    tx_data = burn_data["transaction"]
-                    burn = AlgebraBurn(
-                        tx_hash=tx_data["id"],
-                        tx_index=0,
-                        log_index=int(burn_data.get("logIndex", 0)),
-                        block_number=int(tx_data["blockNumber"]),
-                        block_timestamp=int(tx_data["timestamp"]),
-                        pool_address=normalize_address(burn_data["pool"]["id"]),
-                        owner=normalize_address(burn_data["owner"]),
-                        tx_origin=normalize_address(tx_data["from"]),
-                        amount0=int(float(burn_data["amount0"])),
-                        amount1=int(float(burn_data["amount1"])),
-                        tick_lower=int(burn_data["tickLower"]),
-                        tick_upper=int(burn_data["tickUpper"]),
-                        amount=int(float(burn_data["amount"])),
-                        network=network,
-                        # Include reserves if available (already in decimal format)
-                        reserves0=float(burn_data["reserves0"]) if include_reserves and burn_data.get("reserves0") else None,
-                        reserves1=float(burn_data["reserves1"]) if include_reserves and burn_data.get("reserves1") else None
-                    )
-                    burns.append(burn)
-                except Exception as e:
-                    logger.error(f"Error parsing burn data: {e}")
-                    continue
-            last_id = batch[-1]["id"]
-            if len(batch) < first:
-                break
-        return burns
+
 
 
 # Global subgraph service instance

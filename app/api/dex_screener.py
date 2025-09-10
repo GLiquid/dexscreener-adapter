@@ -6,7 +6,7 @@ from app.models import (
     SwapEventWithBlock, JoinExitEventWithBlock
 )
 from app.services import (
-    event_service, serializer_service, pool_discovery_service, subgraph_service
+    event_service, serializer_service, subgraph_service
 )
 from app.utils import is_valid_address, normalize_address
 from app.config import settings
@@ -110,21 +110,21 @@ async def get_events(
         all_events: List[Union[SwapEventWithBlock, JoinExitEventWithBlock]] = []
         
         try:
-            # Get swap events
-            swaps = await event_service.get_swap_events(network, fromBlock, toBlock)
-            for swap in swaps:
+            # Get all events in one optimized call
+            events = await event_service.get_all_events(network, fromBlock, toBlock)
+            
+            # Process swap events
+            for swap in events.get("swaps", []):
                 swap_event = await serializer_service.serialize_swap_event(swap)
                 all_events.append(swap_event)
             
-            # Get mint events (join)
-            mints = await event_service.get_mint_events(network, fromBlock, toBlock)
-            for mint in mints:
+            # Process mint events (join)
+            for mint in events.get("mints", []):
                 mint_event = await serializer_service.serialize_mint_event(mint)
                 all_events.append(mint_event)
             
-            # Get burn events (exit)
-            burns = await event_service.get_burn_events(network, fromBlock, toBlock)
-            for burn in burns:
+            # Process burn events (exit)
+            for burn in events.get("burns", []):
                 burn_event = await serializer_service.serialize_burn_event(burn)
                 all_events.append(burn_event)
                 

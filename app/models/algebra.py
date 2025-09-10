@@ -2,6 +2,16 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class Token(BaseModel):
+    """Internal model for ERC-20 token data"""
+    address: str
+    name: str
+    symbol: str
+    decimals: int
+    total_supply: Optional[int] = None
+    network: str
+
+
 class AlgebraPool(BaseModel):
     """Internal model for Algebra pool data"""
     address: str
@@ -17,14 +27,19 @@ class AlgebraPool(BaseModel):
     version: Optional[str] = None  # Optional - protocol version if needed
 
 
-class Token(BaseModel):
-    """Internal model for ERC-20 token data"""
+class AlgebraPoolWithTokens(BaseModel):
+    """Extended pool model with full token information"""
     address: str
-    name: str
-    symbol: str
-    decimals: int
-    total_supply: Optional[int] = None
+    token0: Token
+    token1: Token
+    fee: int
+    tick_spacing: int
+    created_at_block: Optional[int] = None
+    created_at_timestamp: Optional[int] = None
+    created_at_tx: Optional[str] = None
+    creator: Optional[str] = None
     network: str
+    version: Optional[str] = None
 
 
 class AlgebraSwap(BaseModel):
@@ -44,6 +59,10 @@ class AlgebraSwap(BaseModel):
     liquidity: int
     tick: int
     network: str
+    # Token information included from subgraph
+    token0: Token
+    token1: Token
+    pool_fee: int
     # Optional reserves fields (for V2 subgraphs) - in decimal format
     reserves0: Optional[float] = None
     reserves1: Optional[float] = None
@@ -66,6 +85,10 @@ class AlgebraMint(BaseModel):
     tick_upper: int
     amount: int  # liquidity amount
     network: str
+    # Token information included from subgraph
+    token0: Token
+    token1: Token
+    pool_fee: int
     # Optional reserves fields (for V2 subgraphs) - in decimal format
     reserves0: Optional[float] = None
     reserves1: Optional[float] = None
@@ -87,6 +110,10 @@ class AlgebraBurn(BaseModel):
     tick_upper: int
     amount: int  # liquidity amount
     network: str
+    # Token information included from subgraph
+    token0: Token
+    token1: Token
+    pool_fee: int
     # Optional reserves fields (for V2 subgraphs) - in decimal format
     reserves0: Optional[float] = None
     reserves1: Optional[float] = None

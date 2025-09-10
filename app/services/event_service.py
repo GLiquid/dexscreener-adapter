@@ -13,56 +13,24 @@ class EventService:
     def __init__(self):
         self._token_cache: Dict[str, Token] = {}  # address -> token info
     
-    async def get_swap_events(self, network: str, from_block: int, 
-                            to_block: int) -> List[AlgebraSwap]:
-        """Get all swap events from Algebra pools in block range via subgraph"""
+    async def get_all_events(self, network: str, from_block: int, 
+                           to_block: int) -> Dict[str, List]:
+        """Get all events (swaps, mints, burns) from Algebra pools in block range via subgraph"""
         
         try:
-            swaps = await subgraph_service.get_swaps(network, from_block, to_block)
+            events = await subgraph_service.get_all_events(network, from_block, to_block)
             
-            # Sort by block number and log index
-            swaps.sort(key=lambda x: (x.block_number, x.log_index))
+            # Sort all events by block number and log index
+            for event_type in events:
+                events[event_type].sort(key=lambda x: (x.block_number, x.log_index))
             
-            logger.info(f"Fetched {len(swaps)} swap events from {network} subgraph")
-            return swaps
-            
-        except Exception as e:
-            logger.error(f"Error fetching swap events from subgraph: {e}")
-            return []
-    
-    async def get_mint_events(self, network: str, from_block: int, 
-                            to_block: int) -> List[AlgebraMint]:
-        """Get all mint events (add liquidity) from Algebra pools via subgraph"""
-        
-        try:
-            mints = await subgraph_service.get_mints(network, from_block, to_block)
-            
-            # Sort by block number and log index
-            mints.sort(key=lambda x: (x.block_number, x.log_index))
-            
-            logger.info(f"Fetched {len(mints)} mint events from {network} subgraph")
-            return mints
+            total_events = sum(len(events[event_type]) for event_type in events)
+            logger.info(f"Fetched {total_events} total events from {network} subgraph")
+            return events
             
         except Exception as e:
-            logger.error(f"Error fetching mint events from subgraph: {e}")
-            return []
-    
-    async def get_burn_events(self, network: str, from_block: int, 
-                            to_block: int) -> List[AlgebraBurn]:
-        """Get all burn events (remove liquidity) from Algebra pools via subgraph"""
-        
-        try:
-            burns = await subgraph_service.get_burns(network, from_block, to_block)
-            
-            # Sort by block number and log index
-            burns.sort(key=lambda x: (x.block_number, x.log_index))
-            
-            logger.info(f"Fetched {len(burns)} burn events from {network} subgraph")
-            return burns
-            
-        except Exception as e:
-            logger.error(f"Error fetching burn events from subgraph: {e}")
-            return []
+            logger.error(f"Error fetching events from subgraph: {e}")
+            return {"swaps": [], "mints": [], "burns": []}
     
     async def get_token_info(self, network: str, token_address: str) -> Optional[Token]:
         """Get token information from subgraph"""
