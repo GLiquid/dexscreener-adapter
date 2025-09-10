@@ -132,12 +132,36 @@ async def get_events(
             logger.error(f"Error fetching events from {network}: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to fetch events from {network}")
         
-        # Sort all events by block number, then by transaction index, then by event index
+        # TODO: change sort after subgraph update
+        # Sort all events by block number, then by transaction hash to group events by transaction
         all_events.sort(key=lambda x: (
-            x.block.blockNumber, 
-            x.txnIndex, 
-            x.eventIndex
+            x.block.blockNumber
         ))
+        
+        # Reassign txnIndex and eventIndex after sorting
+        current_block = None
+        current_txn = None
+        txn_index = 0
+        event_index = 0
+        
+        for event in all_events:
+            # Reset transaction index for new block
+            if current_block != event.block.blockNumber:
+                current_block = event.block.blockNumber
+                current_txn = None
+                txn_index = 0
+            
+            # Reset event index for new transaction
+            if current_txn != event.txnId:
+                if current_txn is not None:  # Don't increment on first transaction of block
+                    txn_index += 1
+                current_txn = event.txnId
+                event_index = 0
+            
+            # Update indices
+            event.txnIndex = txn_index
+            event.eventIndex = event_index
+            event_index += 1
         
         return {"events": [event.dict() for event in all_events]}
         
