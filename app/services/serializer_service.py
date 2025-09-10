@@ -133,7 +133,7 @@ class SerializerService:
         asset1_out = f"{amount1_abs:.18f}".rstrip('0').rstrip('.') if swap.amount1 < 0 else None
         
         # Calculate price (price of token0 in terms of token1) - always positive, formatted as string
-        price_raw = abs(swap.amount0 / swap.amount1) if swap.amount1 != 0 else 0
+        price_raw = abs(swap.amount1 / swap.amount0) if swap.amount0 != 0 else 0
         price_native = f"{price_raw:.18f}".rstrip('0').rstrip('.')
         
         # Include reserves if available from subgraph
