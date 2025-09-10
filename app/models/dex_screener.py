@@ -1,14 +1,18 @@
 from typing import Optional, Dict, List, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class Block(BaseModel):
+class BaseModelWithConfig(BaseModel):
+    model_config = ConfigDict(exclude_none=True)
+
+
+class Block(BaseModelWithConfig):
     blockNumber: int
     blockTimestamp: int
     metadata: Optional[Dict[str, str]] = None
 
 
-class Asset(BaseModel):
+class Asset(BaseModelWithConfig):
     id: str
     name: str
     symbol: str
@@ -19,7 +23,7 @@ class Asset(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class Pool(BaseModel):
+class Pool(BaseModelWithConfig):
     id: str
     name: str
     assetIds: List[str]
@@ -27,7 +31,7 @@ class Pool(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class Pair(BaseModel):
+class Pair(BaseModelWithConfig):
     id: str
     dexKey: str
     asset0Id: str
@@ -40,12 +44,12 @@ class Pair(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class Reserves(BaseModel):
+class Reserves(BaseModelWithConfig):
     asset0: Union[str, float]
     asset1: Union[str, float]
 
 
-class SwapEvent(BaseModel):
+class SwapEvent(BaseModelWithConfig):
     eventType: str = "swap"
     txnId: str
     txnIndex: int
@@ -61,7 +65,7 @@ class SwapEvent(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class JoinExitEvent(BaseModel):
+class JoinExitEvent(BaseModelWithConfig):
     eventType: str  # "join" or "exit"
     txnId: str
     txnIndex: int
@@ -74,7 +78,7 @@ class JoinExitEvent(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class EventWithBlock(BaseModel):
+class EventWithBlock(BaseModelWithConfig):
     block: Block
 
 
@@ -87,17 +91,17 @@ class JoinExitEventWithBlock(EventWithBlock, JoinExitEvent):
 
 
 # Response models
-class LatestBlockResponse(BaseModel):
+class LatestBlockResponse(BaseModelWithConfig):
     block: Block
 
 
-class AssetResponse(BaseModel):
+class AssetResponse(BaseModelWithConfig):
     asset: Asset
 
 
-class PairResponse(BaseModel):
+class PairResponse(BaseModelWithConfig):
     pair: Pair
 
 
-class EventsResponse(BaseModel):
+class EventsResponse(BaseModelWithConfig):
     events: List[Union[SwapEventWithBlock, JoinExitEventWithBlock]]

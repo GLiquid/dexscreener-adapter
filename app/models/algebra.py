@@ -1,8 +1,12 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class Token(BaseModel):
+class BaseModelWithConfig(BaseModel):
+    model_config = ConfigDict(exclude_none=True)
+
+
+class Token(BaseModelWithConfig):
     """Internal model for ERC-20 token data"""
     address: str
     name: str
@@ -12,7 +16,7 @@ class Token(BaseModel):
     network: str
 
 
-class AlgebraPool(BaseModel):
+class AlgebraPool(BaseModelWithConfig):
     """Internal model for Algebra pool data"""
     address: str
     token0: str
@@ -27,7 +31,7 @@ class AlgebraPool(BaseModel):
     version: Optional[str] = None  # Optional - protocol version if needed
 
 
-class AlgebraPoolWithTokens(BaseModel):
+class AlgebraPoolWithTokens(BaseModelWithConfig):
     """Extended pool model with full token information"""
     address: str
     token0: Token
@@ -42,7 +46,7 @@ class AlgebraPoolWithTokens(BaseModel):
     version: Optional[str] = None
 
 
-class AlgebraSwap(BaseModel):
+class AlgebraSwap(BaseModelWithConfig):
     """Internal model for swap event"""
     tx_hash: str
     tx_index: int
@@ -68,7 +72,7 @@ class AlgebraSwap(BaseModel):
     reserves1: Optional[float] = None
 
 
-class AlgebraMint(BaseModel):
+class AlgebraMint(BaseModelWithConfig):
     """Internal model for mint event (add liquidity)"""
     tx_hash: str
     tx_index: int
@@ -94,7 +98,7 @@ class AlgebraMint(BaseModel):
     reserves1: Optional[float] = None
 
 
-class AlgebraBurn(BaseModel):
+class AlgebraBurn(BaseModelWithConfig):
     """Internal model for burn event (remove liquidity)"""
     tx_hash: str
     tx_index: int
