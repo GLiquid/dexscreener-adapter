@@ -102,20 +102,20 @@ Server will be available at: http://localhost:8000
 
 ## API Endpoints
 
-All endpoints follow the pattern: `/dex/{network}/{endpoint}`
+All endpoints follow the pattern: `/{network}/{endpoint}`
 
 ```
 
 ### Development Server Examples
 ```bash
 # Get latest block:
-curl http://localhost:8000/dex/ethereum/latest-block
+curl http://localhost:8000/ethereum/latest-block
 
 # Get token information (WETH):
-curl "http://localhost:8000/dex/ethereum/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+curl "http://localhost:8000/ethereum/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
 
 # Get events for the last 100 blocks:
-curl "http://localhost:8000/dex/ethereum/events?fromBlock=18700000&toBlock=18700100"
+curl "http://localhost:8000/ethereum/events?fromBlock=18700000&toBlock=18700100"
 ```
 
 ## Monitoring & Troubleshooting
