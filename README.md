@@ -83,9 +83,6 @@ POLYGON_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/cryptoalgebra/algeb
 NETWORKS=ethereum,polygon,custom_network
 ```
 
-### Reserves Support
-The adapter automatically detects whether subgraphs support reserves fields. If a subgraph includes reserves data, it will be included in the DEX Screener response. If not, the reserves field will be `null` (backward compatible).
-
 ## Usage
 
 ### Development server:

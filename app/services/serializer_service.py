@@ -1,14 +1,12 @@
 import logging
-from typing import List, Optional, Dict, Union
 from app.models import (
     Block, Asset, Pair, SwapEventWithBlock, JoinExitEventWithBlock,
-    AlgebraSwap, AlgebraMint, AlgebraBurn, Token, AlgebraPoolWithTokens,
-    Reserves
+    AlgebraSwap, AlgebraMint, AlgebraBurn, Reserves
 )
 from app.services.event_service import event_service
 from app.services.subgraph_service import subgraph_service
 from app.utils import (
-    format_amount, calculate_price_from_sqrt_price, normalize_address
+    format_amount
 )
 
 logger = logging.getLogger(__name__)

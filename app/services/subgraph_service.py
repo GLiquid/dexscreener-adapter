@@ -1,21 +1,19 @@
 import logging
 import aiohttp
-import asyncio
-from typing import Dict, List, Optional, Any
+
+from typing import Dict, List, Optional
 from app.config import settings
 from app.models import Token, AlgebraSwap, AlgebraMint, AlgebraBurn, AlgebraPoolWithTokens
 from app.utils import normalize_address
-from app.services.schema_detector import schema_detector, SubgraphSchemaVersion
 
 logger = logging.getLogger(__name__)
 
 
 class SubgraphService:
-    """Service for fetching data from Algebra Integral subgraphs"""
+    """Service for fetching data from Algebra Integral subgraphs with reserves support"""
     
     def __init__(self):
         self._session: Optional[aiohttp.ClientSession] = None
-        self._schema_versions: Dict[str, SubgraphSchemaVersion] = {}
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
@@ -30,33 +28,9 @@ class SubgraphService:
         if self._session and not self._session.closed:
             await self._session.close()
     
-    async def _ensure_schema_detected(self, network: str) -> SubgraphSchemaVersion:
-        """Ensure schema version is detected for network"""
-        if network in self._schema_versions:
-            return self._schema_versions[network]
-        
-        # Check for manual config override
-        manual_version = settings.get_subgraph_schema_version(network)
-        if manual_version:
-            if manual_version.lower() == "v2":
-                version = SubgraphSchemaVersion.V2_WITH_RESERVES
-            else:
-                version = SubgraphSchemaVersion.V1_NO_RESERVES
-            
-            schema_detector.set_manual_schema(network, settings.get_subgraph_url(network), version)
-            self._schema_versions[network] = version
-            return version
-        
-        # Auto-detect schema
-        session = await self._get_session()
-        subgraph_url = settings.get_subgraph_url(network)
-        version = await schema_detector.detect_schema_version(session, subgraph_url, network)
-        self._schema_versions[network] = version
-        return version
-    
-    def _get_swap_query_fields(self, include_reserves: bool) -> str:
-        """Get swap query fields based on schema version"""
-        base_fields = """
+    def _get_swap_query_fields(self) -> str:
+        """Get swap query fields with reserves included"""
+        return """
                 id
                 pool {
                     id
@@ -82,17 +56,12 @@ class SubgraphService:
                 price
                 liquidity
                 tick
-            """
-        
-        if include_reserves:
-            return base_fields + """
                 reserves0
                 reserves1"""
-        return base_fields
     
-    def _get_mint_query_fields(self, include_reserves: bool) -> str:
-        """Get mint query fields based on schema version"""
-        base_fields = """
+    def _get_mint_query_fields(self) -> str:
+        """Get mint query fields with reserves included"""
+        return """
                 id
                 pool {
                     id
@@ -118,17 +87,12 @@ class SubgraphService:
                 tickLower
                 tickUpper
                 amount
-        """
-        
-        if include_reserves:
-            return base_fields + """
                 reserves0
                 reserves1"""
-        return base_fields
     
-    def _get_burn_query_fields(self, include_reserves: bool) -> str:
-        """Get burn query fields based on schema version"""
-        base_fields = """
+    def _get_burn_query_fields(self) -> str:
+        """Get burn query fields with reserves included"""
+        return """
                 id
                 pool {
                     id
@@ -153,13 +117,8 @@ class SubgraphService:
                 tickLower
                 tickUpper
                 amount
-        """
-        
-        if include_reserves:
-            return base_fields + """
                 reserves0
                 reserves1"""
-        return base_fields
     
     async def query_subgraph(self, network: str, query: str, variables: Optional[Dict] = None) -> Optional[Dict]:
         """Execute GraphQL query against subgraph"""
@@ -330,14 +289,10 @@ class SubgraphService:
     
     async def get_all_events(self, network: str, from_block: int, to_block: int, first: int = 1000) -> Dict[str, List]:
         """Get all events (swaps, mints, burns) from subgraph using cursor-based pagination"""
-        # Detect schema version
-        schema_version = await self._ensure_schema_detected(network)
-        include_reserves = schema_version == SubgraphSchemaVersion.V2_WITH_RESERVES
-        
-        # Build query fields for each event type
-        swap_fields = self._get_swap_query_fields(include_reserves).strip()
-        mint_fields = self._get_mint_query_fields(include_reserves).strip()
-        burn_fields = self._get_burn_query_fields(include_reserves).strip()
+        # Build query fields for each event type (reserves included by default)
+        swap_fields = self._get_swap_query_fields().strip()
+        mint_fields = self._get_mint_query_fields().strip()
+        burn_fields = self._get_burn_query_fields().strip()
 
         
         query = f"""
@@ -426,8 +381,8 @@ class SubgraphService:
                             token1=token1,
                             pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
-                            reserves0=float(swap_data["reserves0"]) if include_reserves and swap_data.get("reserves0") else None,
-                            reserves1=float(swap_data["reserves1"]) if include_reserves and swap_data.get("reserves1") else None
+                            reserves0=float(swap_data["reserves0"]) if swap_data.get("reserves0") else None,
+                            reserves1=float(swap_data["reserves1"]) if swap_data.get("reserves1") else None
                         )
                         all_swaps.append(swap)
                     except Exception as e:
@@ -473,8 +428,8 @@ class SubgraphService:
                             token1=token1,
                             pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
-                            reserves0=float(mint_data["reserves0"]) if include_reserves and mint_data.get("reserves0") else None,
-                            reserves1=float(mint_data["reserves1"]) if include_reserves and mint_data.get("reserves1") else None
+                            reserves0=float(mint_data["reserves0"]) if mint_data.get("reserves0") else None,
+                            reserves1=float(mint_data["reserves1"]) if mint_data.get("reserves1") else None
                         )
                         all_mints.append(mint)
                     except Exception as e:
@@ -519,8 +474,8 @@ class SubgraphService:
                             token1=token1,
                             pool_fee=int(pool_data.get("fee", 0)),
                             # Include reserves if available (already in decimal format)
-                            reserves0=float(burn_data["reserves0"]) if include_reserves and burn_data.get("reserves0") else None,
-                            reserves1=float(burn_data["reserves1"]) if include_reserves and burn_data.get("reserves1") else None
+                            reserves0=float(burn_data["reserves0"]) if burn_data.get("reserves0") else None,
+                            reserves1=float(burn_data["reserves1"]) if burn_data.get("reserves1") else None
                         )
                         all_burns.append(burn)
                     except Exception as e:

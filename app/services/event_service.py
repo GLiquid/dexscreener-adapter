@@ -1,8 +1,7 @@
 import logging
 from typing import List, Optional, Dict, Tuple
 from app.services.subgraph_service import subgraph_service
-from app.models import AlgebraSwap, AlgebraMint, AlgebraBurn, Token
-from app.utils import normalize_address
+from app.models import Token
 
 logger = logging.getLogger(__name__)
 
