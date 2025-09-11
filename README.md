@@ -11,9 +11,8 @@ Adapter for integrating Algebra DEX protocols with DEX Screener. Supports multip
 
 ### Deploy in 3 Steps
 
-1. **Clone & Configure:**
+1. **Configure:**
 ```bash
-git clone <repository>
 cd dexscreener-adapter
 cp .env.example .env
 # Edit .env file with your configuration
@@ -60,50 +59,8 @@ Each network requires a subgraph URL configured with the pattern `{NETWORK}_SUBG
 ETHEREUM_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/cryptoalgebra/algebra-integral-mainnet
 POLYGON_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/cryptoalgebra/algebra-integral-polygon
 
-NETWORKS=ethereum,polygon,custom_network
+NETWORKS=ethereum,polygon
 ```
 
 ### Reserves Support
 The adapter automatically detects whether subgraphs support reserves fields. If a subgraph includes reserves data, it will be included in the DEX Screener response. If not, the reserves field will be `null` (backward compatible).
-
-### Development Setup
-
-1. **Clone and setup environment:**
-```bash
-git clone <repo>
-cd dexscreener-adapter
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# or
-.venv\Scripts\activate     # Windows
-```
-
-2. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-3. **Configuration:**
-```bash
-cp .env.example .env
-# Edit the .env file with your settings
-```
-
-### Development server:
-```bash
-python main.py
-```
-
-### Production server:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-Server will be available at: http://localhost:8000
-
-## Production Configuration
-
-### SSL/HTTPS Setup
-1. Get SSL certificates (Let's Encrypt recommended)
-2. Update `nginx.conf` with SSL configuration
-3. Place certificates in `./ssl/` directory
