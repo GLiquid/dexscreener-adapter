@@ -29,11 +29,11 @@ All endpoints follow the pattern: `/{network}/{endpoint}`
 
 ```bash
 # Test health
-curl http://localhost/health
+curl http://localhost:8000/health
 
 # Test endpoints
-curl http://localhost//polygon/latest-block
-curl http://localhost/polygon/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+curl http://localhost:8000/polygon/latest-block
+curl http://localhost:8000/polygon/asset?id=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
 
 ```
 
