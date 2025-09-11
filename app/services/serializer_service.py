@@ -76,6 +76,11 @@ class SerializerService:
         if not pool_info:
             raise ValueError(f"Could not find pool info for {pool_address}")
         
+        # Get factory address from subgraph to use as dexKey
+        factory_address = await subgraph_service.get_factory_address(network)
+        if not factory_address:
+            raise ValueError(f"Could not fetch factory address for {network}")
+        
         # Now we have all token information from one query
         token0 = pool_info.token0
         token1 = pool_info.token1
@@ -86,7 +91,7 @@ class SerializerService:
         # Build pair data, only include fields that have values
         pair_data = {
             "id": pool_info.address,
-            "dexKey": f"{self.dex_key}-{network}",
+            "dexKey": factory_address,  # Use factory address as dexKey
             "asset0Id": token0.address,
             "asset1Id": token1.address
         }

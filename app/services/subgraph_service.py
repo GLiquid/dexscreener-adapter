@@ -236,6 +236,21 @@ class SubgraphService:
                 "blockTimestamp": int(tx_data["timestamp"])
             }
         return None
+    
+    async def get_factory_address(self, network: str) -> Optional[str]:
+        """Get factory address from subgraph"""
+        query = """
+        query GetFactory {
+            factories(first: 1) {
+                id
+            }
+        }
+        """
+        
+        result = await self.query_subgraph(network, query)
+        if result and "factories" in result and result["factories"]:
+            return result["factories"][0]["id"]
+        return None
 
     
     async def get_pool_with_tokens(self, network: str, pool_address: str) -> Optional[AlgebraPoolWithTokens]:
