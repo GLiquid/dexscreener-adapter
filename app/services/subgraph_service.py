@@ -181,6 +181,7 @@ class SubgraphService:
                 orderDirection: desc
             ) {
                 id
+                index
                 blockNumber
                 timestamp
             }
@@ -308,6 +309,7 @@ class SubgraphService:
                 orderDirection: asc
             ) {{
                 id
+                index
                 blockNumber
                 timestamp
                 swaps {{{swap_fields}
@@ -363,7 +365,7 @@ class SubgraphService:
                         )
                         swap = AlgebraSwap(
                             tx_hash=tx_id,
-                            tx_index=0,
+                            tx_index=tx_data.get("index", 0),
                             log_index=int(swap_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
@@ -410,7 +412,7 @@ class SubgraphService:
                         
                         mint = AlgebraMint(
                             tx_hash=tx_id,
-                            tx_index=0,
+                            tx_index=tx_data.get("index", 0),
                             log_index=int(mint_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
@@ -457,7 +459,7 @@ class SubgraphService:
                         
                         burn = AlgebraBurn(
                             tx_hash=tx_id,
-                            tx_index=0,
+                            tx_index=tx_data.get("index", 0),
                             log_index=int(burn_data.get("logIndex", 0)),
                             block_number=block_number,
                             block_timestamp=timestamp,
