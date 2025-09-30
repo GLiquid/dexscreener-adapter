@@ -10,11 +10,19 @@ services:
       - LOG_LEVEL=INFO
     volumes:
       - ./.env:/app/.env:ro
-    ports:
-      - "8000:8000"  # Expose directly for external nginx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dexscreener.rule=Host(`${GLOBAL_DOMAIN}`)
+      - traefik.http.routers.dexscreener.entryPoints=https
+      - traefik.http.routers.dexscreener.tls=true
+      - traefik.http.routers.dexscreener.tls.certresolver=letsencrypt
+      - traefik.http.services.dexscreener.loadbalancer.server.port=8000
+      - traefik.docker.network=traefik
+    networks:
+      - traefik
