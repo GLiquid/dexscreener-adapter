@@ -30,6 +30,7 @@ jobs:
 
             # Pull latest changes
             git pull origin feature/reserves-support
+            git checkout feature/reserves-support
 
             # Create .env file with production values
             cat << EOF > .env
