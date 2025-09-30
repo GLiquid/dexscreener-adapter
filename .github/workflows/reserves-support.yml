@@ -37,7 +37,7 @@ jobs:
             GLOBAL_DOMAIN=dexadapter.gliquid.xyz
             LOG_LEVEL=INFO
             MAX_BLOCK_RANGE=10000
-            NETWORK=hyperevm
+            NETWORKS=hyperevm
             HYPEREVM_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cmb20ryy424yb01wy7zwd7xd1/subgraphs/analytics/1.2.3/gn
             EOF
 
