@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # DEX Screener API (handles all networks)
   dex-adapter:
     build: .
     container_name: dex_adapter
