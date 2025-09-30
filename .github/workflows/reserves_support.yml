@@ -1,0 +1,45 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [feature/reserves_support]
+  pull_request:
+    branches: [feature/reserves_support]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/reserves_support'
+
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            # Create project directory if it doesn't exist
+            PROJECT_DIR="/home/${{ secrets.DEPLOY_USERNAME }}/dexscreener-adapter"
+            if [ ! -d "$PROJECT_DIR" ]; then
+              git clone https://github.com/gliquid/dexscreener-adapter.git "$PROJECT_DIR"
+            fi
+
+            # Change to project directory
+            cd "$PROJECT_DIR"
+
+            # Pull latest changes
+            git pull origin main
+
+            # Create .env file with production values
+            cat << EOF > .env
+            GLOBAL_DOMAIN=dexadapter.gliquid.xyz
+            LOG_LEVEL=INFO
+            MAX_BLOCK_RANGE=10000
+            NETWORK=hyperevm
+            HYPEREVM_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cmb20ryy424yb01wy7zwd7xd1/subgraphs/analytics/1.2.3/gn
+            EOF
+
+            # Restart containers
+            docker compose up --build -d 
+
