@@ -34,7 +34,6 @@ jobs:
 
             # Create .env file with production values
             cat << EOF > .env
-            GLOBAL_DOMAIN=dexadapter.gliquid.xyz
             LOG_LEVEL=INFO
             MAX_BLOCK_RANGE=10000
             NETWORKS=hyperevm

@@ -17,7 +17,7 @@ services:
       start_period: 40s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dexscreener.rule=Host(`${GLOBAL_DOMAIN}`)
+      - traefik.http.routers.dexscreener.rule=Host(`dexadapter.gliquid.xyz`)
       - traefik.http.routers.dexscreener.entryPoints=https
       - traefik.http.routers.dexscreener.tls=true
       - traefik.http.routers.dexscreener.tls.certresolver=letsencrypt
