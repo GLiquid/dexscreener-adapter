@@ -25,3 +25,6 @@ services:
       - traefik.docker.network=traefik
     networks:
       - traefik
+networks:
+  traefik:
+    external: true
