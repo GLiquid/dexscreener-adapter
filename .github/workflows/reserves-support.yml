@@ -29,6 +29,7 @@ jobs:
             cd "$PROJECT_DIR"
 
             # Pull latest changes
+            git checkout feature/reserves-support
             git pull origin feature/reserves-support
 
             # Create .env file with production values
