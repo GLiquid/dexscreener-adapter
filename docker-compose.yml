@@ -3,7 +3,7 @@ version: '3.8'
 services:
   dex-adapter:
     build: .
-    container_name: dex_adapter
+    container_name: dex-adapter
     restart: unless-stopped
     environment:
       - LOG_LEVEL=INFO
@@ -17,11 +17,10 @@ services:
       start_period: 40s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dexscreener.rule=Host(`dexadapter.gliquid.xyz`)
-      - traefik.http.routers.dexscreener.entryPoints=https
-      - traefik.http.routers.dexscreener.tls=true
-      - traefik.http.routers.dexscreener.tls.certresolver=letsencrypt
-      - traefik.http.services.dexscreener.loadbalancer.server.port=8000
+      - traefik.http.routers.dex-adapter.rule=Host(`dexadapter.gliquid.xyz`)
+      - traefik.http.routers.dex-adapter.entryPoints=https
+      - traefik.http.routers.dex-adapter.tls.certresolver=letsencrypt
+      - traefik.http.services.dex-adapter.loadbalancer.server.port=8000
       - traefik.docker.network=traefik
     networks:
       - traefik
