@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  dex-adapter:
+    build: .
+    container_name: dex-adapter-local
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./.env:/app/.env:ro
+    ports:
+      - "8008:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
